@@ -1,37 +1,19 @@
 <script setup>
-import { ref } from 'vue'
-import { runShell } from '../api.js'
+import { computed } from 'vue'
+import RemoteTerminal from '../components/RemoteTerminal.vue'
+import { appState } from '../api.js'
 
-const command = ref('uname -a')
-const output = ref('')
-const loading = ref(false)
-const error = ref('')
-
-async function execute() {
-  loading.value = true
-  error.value = ''
-  try {
-    const payload = await runShell(command.value)
-    output.value = payload?.data?.output || ''
-  } catch (err) {
-    error.value = err.message
-  } finally {
-    loading.value = false
-  }
-}
+const initialCwd = computed(() => appState.remoteRoot || '~')
 </script>
 
 <template>
-  <section class="terminal-card">
-    <p class="eyebrow">SSH Control</p>
-    <label class="field-label">
-      <span>命令</span>
-      <textarea v-model="command" class="text-area" placeholder="输入要在 HoneyTea 设备上执行的命令"></textarea>
-    </label>
-    <div class="stack-actions">
-      <button class="primary-button" :disabled="loading" @click="execute">{{ loading ? '执行中...' : '执行命令' }}</button>
+  <section class="page-stack">
+    <div class="panel-card note-card">
+      <p class="eyebrow">SSH Control</p>
+      <p class="muted">
+        当前后端仍提供按行执行的 shell 接口，因此这里实现的是终端式交互壳：支持直接在仿真终端里输入、查看历史输出、保持当前目录、清屏与命令历史。
+      </p>
     </div>
-    <p v-if="error" class="muted">{{ error }}</p>
-    <div class="terminal-output">{{ output || '输出会显示在这里。' }}</div>
+    <RemoteTerminal title="SSH 控制" :initial-cwd="initialCwd" />
   </section>
 </template>

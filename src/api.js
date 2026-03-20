@@ -6,7 +6,11 @@ const initialClientId = localStorage.getItem('lemontea.clientId') || 'raspi-dev-
 export const appState = reactive({
   baseUrl: initialBaseUrl,
   clientId: initialClientId,
-  transportMode: 'unknown'
+  connected: false,
+  transportMode: 'unknown',
+  availableClients: [],
+  remoteRoot: '',
+  lastHealth: null
 })
 
 watch(
@@ -19,6 +23,13 @@ watch(
   (value) => localStorage.setItem('lemontea.clientId', value)
 )
 
+function updateHealthState(payload) {
+  appState.transportMode = payload.transport_mode || 'unknown'
+  appState.availableClients = Array.isArray(payload.clients) ? payload.clients : []
+  appState.lastHealth = payload
+  return payload
+}
+
 async function request(path, options = {}) {
   const response = await fetch(`${appState.baseUrl}${path}`, {
     headers: {
@@ -29,7 +40,14 @@ async function request(path, options = {}) {
   })
 
   const text = await response.text()
-  const payload = text ? JSON.parse(text) : {}
+  let payload = {}
+  if (text) {
+    try {
+      payload = JSON.parse(text)
+    } catch {
+      payload = { message: text }
+    }
+  }
   if (!response.ok) {
     throw new Error(payload.error || payload.message || `HTTP ${response.status}`)
   }
@@ -37,25 +55,51 @@ async function request(path, options = {}) {
 }
 
 export async function fetchHealth() {
-  const payload = await request('/health')
-  appState.transportMode = payload.transport_mode || 'unknown'
-  return payload
+  return updateHealthState(await request('/health'))
+}
+
+export async function connectClient() {
+  const clientId = appState.clientId.trim()
+  if (!appState.baseUrl.trim()) {
+    throw new Error('请输入客户端地址')
+  }
+  if (!clientId) {
+    throw new Error('请输入客户端 ID')
+  }
+
+  await fetchHealth()
+  const hasClient = appState.availableClients.some((client) => client.client_id === clientId)
+  if (!hasClient) {
+    const knownClients = appState.availableClients.map((client) => client.client_id).join('、') || '无'
+    throw new Error(`目标客户端未连接到服务端，当前可用客户端：${knownClients}`)
+  }
+
+  appState.connected = true
+}
+
+export function disconnectClient() {
+  appState.connected = false
 }
 
 export function listClients() {
   return request('/api/clients')
 }
 
-export function runShell(command) {
+export function runShell(command, options = {}) {
   return request(`/api/clients/${appState.clientId}/shell`, {
     method: 'POST',
-    body: JSON.stringify({ command })
+    body: JSON.stringify({ command }),
+    signal: options.signal
   })
 }
 
-export function listFiles(path = '') {
+export async function listFiles(path = '') {
   const query = path ? `?path=${encodeURIComponent(path)}` : ''
-  return request(`/api/clients/${appState.clientId}/files${query}`)
+  const payload = await request(`/api/clients/${appState.clientId}/files${query}`)
+  if (payload?.data?.root) {
+    appState.remoteRoot = payload.data.root
+  }
+  return payload
 }
 
 export function readFile(path) {
@@ -120,9 +164,16 @@ export function stopLemonPlugin(pluginName) {
 }
 
 export function encodeBase64(content) {
-  return btoa(unescape(encodeURIComponent(content)))
+  const bytes = new TextEncoder().encode(content)
+  let binary = ''
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte)
+  })
+  return btoa(binary)
 }
 
 export function decodeBase64(content) {
-  return decodeURIComponent(escape(atob(content)))
+  const binary = atob(content)
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
+  return new TextDecoder().decode(bytes)
 }

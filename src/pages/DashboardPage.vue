@@ -13,45 +13,51 @@ const props = defineProps({
 const clients = computed(() => props.health?.clients || [])
 
 const cards = [
-  { to: '/shell', title: 'SSH 控制', subtitle: '远程执行命令与查看标准输出' },
-  { to: '/files', title: '文件管理', subtitle: '浏览目录、读取文件、写入文件' },
-  { to: '/honey-plugins', title: 'HoneyTea 子进程', subtitle: '管理客户端插件与硬件能力' },
-  { to: '/lemon-plugins', title: 'LemonTea 子进程', subtitle: '管理服务端插件与中转能力' }
+  { to: '/shell', title: 'SSH 控制', subtitle: '打开终端式远程控制界面', glyph: '⌘' },
+  { to: '/files', title: '文件管理', subtitle: '以 Finder 风格浏览客户端目录', glyph: '▣' },
+  { to: '/lemon-plugins', title: 'LemonTea 子进程管理', subtitle: '查看与调用服务端插件', glyph: 'L' },
+  { to: '/honey-plugins', title: 'HoneyTea 子进程管理', subtitle: '管理客户端硬件插件与子进程', glyph: 'H' }
 ]
 </script>
 
 <template>
-  <section class="dashboard-grid">
-    <div class="hero-card">
+  <section class="dashboard-stack">
+    <div class="hero-card hero-card-wide">
       <div class="hero-copy">
-        <p class="eyebrow">Overview</p>
-        <h3>远程控制链路已经集中到一个图形化入口。</h3>
+        <p class="eyebrow">Home</p>
+        <h3>连接已经建立，接下来选择一个控制面板。</h3>
         <p class="muted">
-          当前目标客户端为 {{ appState.clientId }}，后端地址为 {{ appState.baseUrl }}。
-          你可以从这里进入 SSH、文件管理、HoneyTea 子进程管理和 LemonTea 子进程管理四个界面。
+          当前客户端为 {{ appState.clientId }}，前端通过 {{ appState.baseUrl }} 与 LemonTea 服务端通讯，
+          再由服务端转发到 HoneyTea 客户端。
         </p>
-        <div class="metrics-grid">
-          <div class="metric-card">
-            <p class="eyebrow">Transport</p>
-            <div class="metric-value">{{ health?.transport_mode || 'unknown' }}</div>
-            <p class="muted">按配置选择 TCP / WebRTC</p>
-          </div>
-          <div class="metric-card">
-            <p class="eyebrow">Clients</p>
-            <div class="metric-value">{{ clients.length }}</div>
-            <p class="muted">当前已注册的 HoneyTea 客户端</p>
-          </div>
+      </div>
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <p class="eyebrow">Transport</p>
+          <div class="metric-value">{{ health?.transport_mode || 'unknown' }}</div>
+          <p class="muted">TCP / WebRTC 双模式</p>
+        </div>
+        <div class="metric-card">
+          <p class="eyebrow">Target</p>
+          <div class="metric-value metric-value-small">{{ appState.clientId }}</div>
+          <p class="muted">当前连接的 HoneyTea 客户端</p>
+        </div>
+        <div class="metric-card">
+          <p class="eyebrow">Clients</p>
+          <div class="metric-value">{{ clients.length }}</div>
+          <p class="muted">已注册到 LemonTea 的客户端数量</p>
         </div>
       </div>
-      <div class="hero-panel">
-        <p class="eyebrow">Quick Access</p>
-        <div class="plugin-list">
-          <RouterLink v-for="card in cards" :key="card.to" :to="card.to" class="nav-link">
-            <span>{{ card.title }}</span>
-            <small>{{ card.subtitle }}</small>
-          </RouterLink>
+    </div>
+
+    <div class="home-grid">
+      <RouterLink v-for="card in cards" :key="card.to" :to="card.to" class="home-button-card">
+        <div class="home-button-glyph">{{ card.glyph }}</div>
+        <div>
+          <strong>{{ card.title }}</strong>
+          <p class="muted">{{ card.subtitle }}</p>
         </div>
-      </div>
+      </RouterLink>
     </div>
 
     <div class="panel-card">
@@ -65,7 +71,7 @@ const cards = [
         </div>
         <div v-if="!clients.length" class="list-item">
           <strong>暂无客户端</strong>
-          <small>先启动 LemonTea 与 HoneyTea 再刷新状态。</small>
+          <small>先启动 LemonTea 与 HoneyTea，再回到右上角刷新状态。</small>
         </div>
       </div>
     </div>
