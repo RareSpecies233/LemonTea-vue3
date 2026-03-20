@@ -2,9 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import RemoteTerminal from '../components/RemoteTerminal.vue'
 import {
-  appState,
   createDirectory,
-  decodeBase64,
   decodeBase64ToBytes,
   deletePath,
   encodeBytesBase64,
@@ -15,22 +13,20 @@ import {
 } from '../api.js'
 
 const loading = ref(false)
-const previewLoading = ref(false)
 const actionLoading = ref(false)
 const error = ref('')
 const viewMode = ref('icons')
 const currentPath = ref('')
-const rootPath = ref('')
+const rootPath = ref('/')
 const items = ref([])
 const selectedItem = ref(null)
-const selectedFile = ref('')
-const filePreview = ref('')
 const recentPaths = ref([])
 const expandedPaths = ref(new Set())
 const treeCache = reactive({})
 const dragActive = ref(false)
 const fileInput = ref(null)
-const contextMenu = ref({ visible: false, x: 0, y: 0, entry: null, blankArea: false })
+const locationInput = ref('~')
+const contextMenu = ref({ visible: false, x: 0, y: 0, entry: null })
 const terminalPanel = ref({ visible: false, cwd: '~', title: '终端' })
 const dialog = ref({ visible: false, type: '', title: '', value: '', entry: null })
 
@@ -43,59 +39,67 @@ function sortEntries(entries) {
   })
 }
 
+function normalizePath(path) {
+  if (!path || path === '.') {
+    return '/'
+  }
+  return path
+}
+
 function basename(path) {
-  return path.split('/').filter(Boolean).pop() || '~'
+  if (!path || path === '/') {
+    return '/'
+  }
+  return path.split('/').filter(Boolean).pop() || path
 }
 
 function parentPath(path) {
-  const parts = path.split('/').filter(Boolean)
+  if (!path || path === '/' || path === '~') {
+    return '/'
+  }
+  const normalized = path.endsWith('/') && path !== '/' ? path.slice(0, -1) : path
+  const parts = normalized.split('/').filter(Boolean)
   parts.pop()
-  return parts.join('/')
+  return parts.length ? `/${parts.join('/')}` : '/'
 }
 
 function joinPath(base, name) {
-  return base ? `${base}/${name}` : name
-}
-
-function buildAbsolutePath(root, relativePath) {
-  if (!root) {
-    return relativePath || '~'
+  if (!base || base === '/') {
+    return `/${name}`
   }
-  if (!relativePath) {
-    return root
-  }
-  return `${root.replace(/\/$/, '')}/${relativePath}`
+  return `${base.replace(/\/$/, '')}/${name}`
 }
 
 function rememberPath(path) {
-  recentPaths.value = [path, ...recentPaths.value.filter((item) => item !== path)].slice(0, 8)
+  const normalized = normalizePath(path)
+  recentPaths.value = [normalized, ...recentPaths.value.filter((item) => item !== normalized)].slice(0, 8)
 }
 
 async function ensureCached(path) {
-  if (treeCache[path]) {
-    return treeCache[path]
+  const normalized = normalizePath(path)
+  if (treeCache[normalized]) {
+    return treeCache[normalized]
   }
-  const payload = await listFiles(path)
-  if (payload?.data?.root) {
-    rootPath.value = payload.data.root
-  }
-  const entries = sortEntries(payload?.data?.entries || [])
-  treeCache[path] = entries
+  const payload = await listFiles(normalized)
+  const data = payload?.data || {}
+  const targetPath = normalizePath(data.path || normalized)
+  const entries = sortEntries(data.entries || [])
+  treeCache[targetPath] = entries
   return entries
 }
 
-async function browse(path = currentPath.value) {
+async function browse(path = currentPath.value || '~') {
   loading.value = true
   error.value = ''
   try {
     const payload = await listFiles(path)
     const data = payload?.data || {}
-    rootPath.value = data.root || rootPath.value || appState.remoteRoot
-    currentPath.value = data.path || ''
+    rootPath.value = normalizePath(data.root || '/')
+    currentPath.value = normalizePath(data.path || path || '/')
+    locationInput.value = currentPath.value
     items.value = sortEntries(data.entries || [])
     treeCache[currentPath.value] = items.value
     rememberPath(currentPath.value)
-
     if (selectedItem.value) {
       selectedItem.value = items.value.find((entry) => entry.path === selectedItem.value.path) || null
     }
@@ -106,30 +110,12 @@ async function browse(path = currentPath.value) {
   }
 }
 
-async function openFile(targetPath) {
-  error.value = ''
-  previewLoading.value = true
-  try {
-    selectedFile.value = targetPath
-    selectedItem.value = items.value.find((entry) => entry.path === targetPath) || selectedItem.value
-    const payload = await readFile(targetPath)
-    const content = decodeBase64(payload?.data?.content_base64 || '')
-    filePreview.value = content.slice(0, 32000)
-  } catch (err) {
-    error.value = err.message
-  } finally {
-    previewLoading.value = false
-  }
-}
-
 async function activateEntry(entry) {
   selectedItem.value = entry
   closeContextMenu()
   if (entry.is_directory) {
     await browse(entry.path)
-    return
   }
-  await openFile(entry.path)
 }
 
 async function toggleExpand(entry) {
@@ -147,15 +133,15 @@ async function toggleExpand(entry) {
 function flattenRows(path, depth = 0) {
   const source = path === currentPath.value ? items.value : treeCache[path] || []
   return source.flatMap((entry) => {
-    const row = [{ ...entry, depth }]
+    const rows = [{ ...entry, depth }]
     if (entry.is_directory && expandedPaths.value.has(entry.path) && treeCache[entry.path]) {
-      row.push(...flattenRows(entry.path, depth + 1))
+      rows.push(...flattenRows(entry.path, depth + 1))
     }
-    return row
+    return rows
   })
 }
 
-function openContextMenu(event, entry = null, blankArea = false) {
+function openContextMenu(event, entry = null) {
   event.preventDefault()
   if (entry) {
     selectedItem.value = entry
@@ -164,19 +150,18 @@ function openContextMenu(event, entry = null, blankArea = false) {
     visible: true,
     x: event.clientX,
     y: event.clientY,
-    entry,
-    blankArea
+    entry
   }
 }
 
 function closeContextMenu() {
-  contextMenu.value = { visible: false, x: 0, y: 0, entry: null, blankArea: false }
+  contextMenu.value = { visible: false, x: 0, y: 0, entry: null }
 }
 
 function openTerminalAt(path, label) {
   terminalPanel.value = {
     visible: true,
-    cwd: buildAbsolutePath(rootPath.value, path),
+    cwd: path,
     title: `终端 · ${label}`
   }
   closeContextMenu()
@@ -202,8 +187,7 @@ async function uploadFiles(files) {
   try {
     for (const file of files) {
       const bytes = new Uint8Array(await file.arrayBuffer())
-      const targetPath = joinPath(currentPath.value, file.name)
-      await writeFile(targetPath, encodeBytesBase64(bytes))
+      await writeFile(joinPath(currentPath.value, file.name), encodeBytesBase64(bytes))
     }
     await browse(currentPath.value)
   } catch (err) {
@@ -265,8 +249,6 @@ async function submitDialog() {
       await deletePath(dialog.value.entry.path, true)
       if (selectedItem.value?.path === dialog.value.entry.path) {
         selectedItem.value = null
-        selectedFile.value = ''
-        filePreview.value = ''
       }
     }
     closeDialog()
@@ -305,24 +287,33 @@ function handleGlobalClick() {
   closeContextMenu()
 }
 
-const currentAbsolutePath = computed(() => buildAbsolutePath(rootPath.value, currentPath.value))
+async function submitLocation() {
+  await browse(locationInput.value.trim() || '/')
+}
+
 const rowItems = computed(() => flattenRows(currentPath.value))
 const favoriteItems = computed(() => {
-  const favorites = [{ label: '主目录', path: '' }]
-  if (currentPath.value) {
-    favorites.push({ label: '上一级', path: parentPath(currentPath.value) })
-  }
+  const favorites = [
+    { label: 'Home', path: '~', description: '用户主目录' },
+    { label: 'Root', path: '/', description: '文件系统根目录' },
+    { label: '启动目录', path: rootPath.value, description: 'HoneyTea 启动目录' }
+  ]
+
   recentPaths.value
-    .filter((path) => path && path !== currentPath.value)
-    .forEach((path) => favorites.push({ label: basename(path), path }))
+    .filter((path) => path && path !== currentPath.value && !favorites.some((item) => item.path === path))
+    .forEach((path) => favorites.push({ label: basename(path), path, description: path }))
+
   return favorites
 })
 const columnPaths = computed(() => {
+  if (!currentPath.value || currentPath.value === '/') {
+    return ['/']
+  }
   const segments = currentPath.value.split('/').filter(Boolean)
-  const paths = ['']
+  const paths = ['/']
   let cursor = ''
   segments.forEach((segment) => {
-    cursor = cursor ? `${cursor}/${segment}` : segment
+    cursor = `${cursor}/${segment}`
     paths.push(cursor)
   })
   return paths
@@ -334,6 +325,17 @@ const columns = computed(() => columnPaths.value.map((path) => ({
 const canDownload = computed(() => selectedItem.value && !selectedItem.value.is_directory)
 const canRename = computed(() => Boolean(selectedItem.value))
 const canDelete = computed(() => Boolean(selectedItem.value))
+const selectedSummary = computed(() => {
+  if (!selectedItem.value) {
+    return null
+  }
+  return {
+    title: selectedItem.value.name,
+    type: selectedItem.value.is_directory ? '目录' : '文件',
+    size: selectedItem.value.is_directory ? '—' : `${selectedItem.value.size} bytes`,
+    path: selectedItem.value.path
+  }
+})
 
 watch(viewMode, async (mode) => {
   if (mode !== 'columns') {
@@ -346,7 +348,7 @@ watch(viewMode, async (mode) => {
 
 onMounted(async () => {
   window.addEventListener('click', handleGlobalClick)
-  await browse('')
+  await browse('~')
 })
 
 onBeforeUnmount(() => {
@@ -362,21 +364,28 @@ onBeforeUnmount(() => {
       <div>
         <p class="eyebrow">收藏</p>
         <div class="finder-favorites">
-          <button v-for="favorite in favoriteItems" :key="favorite.path || favorite.label" class="finder-favorite" @click="browse(favorite.path)">
+          <button v-for="favorite in favoriteItems" :key="favorite.path + favorite.label" class="finder-favorite" @click="browse(favorite.path)">
             <span>{{ favorite.label }}</span>
-            <small>{{ favorite.path || '~' }}</small>
+            <small>{{ favorite.description }}</small>
           </button>
         </div>
       </div>
-      <div class="finder-sidebar-footer">
-        <p class="eyebrow">路径</p>
-        <div class="path-display">{{ currentAbsolutePath }}</div>
+
+      <div class="finder-sidebar-footer finder-sidebar-footer-stack">
+        <p class="eyebrow">已选项目</p>
+        <div v-if="selectedSummary" class="finder-selection-card">
+          <strong>{{ selectedSummary.title }}</strong>
+          <small>{{ selectedSummary.type }}</small>
+          <small>{{ selectedSummary.size }}</small>
+          <small>{{ selectedSummary.path }}</small>
+        </div>
+        <div v-else class="preview-placeholder">选择文件或目录后，会在这里显示基本信息与可执行动作。</div>
       </div>
     </aside>
 
     <div
       class="finder-main panel-card"
-      @contextmenu="openContextMenu($event, null, true)"
+      @contextmenu="openContextMenu($event, null)"
       @dragenter="onDragEnter"
       @dragover="onDragOver"
       @dragleave="onDragLeave"
@@ -389,7 +398,7 @@ onBeforeUnmount(() => {
           <span></span>
         </div>
         <div class="inline-actions">
-          <button class="ghost-button" :disabled="!currentPath" @click="browse(parentPath(currentPath))">上一级</button>
+          <button class="ghost-button" :disabled="currentPath === '/'" @click="browse(parentPath(currentPath))">上一级</button>
           <button class="ghost-button" :disabled="loading" @click="browse(currentPath)">{{ loading ? '读取中...' : '刷新' }}</button>
           <button class="ghost-button" @click="triggerUpload">上传文件</button>
           <button class="ghost-button" @click="openDialog('mkdir')">新建文件夹</button>
@@ -401,12 +410,16 @@ onBeforeUnmount(() => {
         </div>
       </header>
 
-      <div class="finder-action-bar">
-        <div class="finder-action-copy">
-          <strong>{{ basename(currentPath) }}</strong>
-          <span class="muted">{{ currentAbsolutePath }}</span>
-        </div>
+      <div class="finder-action-bar finder-action-bar-wrap">
+        <form class="finder-location-form" @submit.prevent="submitLocation">
+          <label class="field-label finder-location-field">
+            <span>地址栏</span>
+            <input v-model="locationInput" class="text-input" placeholder="输入 ~/、/Users、/tmp 等路径" />
+          </label>
+          <button class="primary-button" type="submit">进入</button>
+        </form>
         <div class="inline-actions">
+          <button class="ghost-button" :disabled="!selectedItem?.is_directory" @click="selectedItem && openTerminalAt(selectedItem.path, selectedItem.name)">打开终端</button>
           <button class="ghost-button" :disabled="!canDownload || actionLoading" @click="downloadEntry()">下载</button>
           <button class="ghost-button" :disabled="!canRename || actionLoading" @click="openDialog('rename', selectedItem)">重命名</button>
           <button class="ghost-button" :disabled="!canDelete || actionLoading" @click="openDialog('delete', selectedItem)">删除</button>
@@ -415,7 +428,7 @@ onBeforeUnmount(() => {
 
       <p v-if="error" class="muted">{{ error }}</p>
 
-      <div class="finder-content">
+      <div class="finder-content finder-content-wide">
         <div v-if="viewMode === 'icons'" class="finder-icons">
           <button
             v-for="entry in items"
@@ -464,8 +477,8 @@ onBeforeUnmount(() => {
         </div>
 
         <div v-else class="finder-columns">
-          <div v-for="column in columns" :key="column.path || '~'" class="finder-column">
-            <div class="finder-column-title">{{ column.path ? basename(column.path) : '~' }}</div>
+          <div v-for="column in columns" :key="column.path" class="finder-column">
+            <div class="finder-column-title">{{ column.path }}</div>
             <button
               v-for="entry in column.entries"
               :key="entry.path"
@@ -481,32 +494,17 @@ onBeforeUnmount(() => {
             </button>
           </div>
         </div>
-
-        <aside class="finder-preview">
-          <p class="eyebrow">预览</p>
-          <div v-if="selectedItem" class="preview-meta">
-            <strong>{{ selectedItem.name }}</strong>
-            <small>{{ selectedItem.is_directory ? '目录' : `文件 ${selectedItem.size} bytes` }}</small>
-            <small>{{ buildAbsolutePath(rootPath, selectedItem.path) }}</small>
-          </div>
-          <div v-if="selectedItem?.is_directory" class="preview-placeholder">
-            右键目录可打开终端、重命名或删除，也可以在当前目录继续拖拽上传文件。
-          </div>
-          <div v-else class="code-output finder-preview-output">
-            {{ previewLoading ? '正在读取文件...' : (selectedFile ? filePreview : '选择文件后会显示文本预览。') }}
-          </div>
-        </aside>
       </div>
 
-      <footer class="finder-footer">
+      <footer class="finder-footer finder-footer-rich">
         <span>当前路径</span>
-        <div class="path-display">{{ currentAbsolutePath }}</div>
+        <div class="path-display">{{ currentPath }}</div>
       </footer>
 
       <div v-if="dragActive" class="finder-drop-overlay">
         <div>
           <strong>拖拽文件到这里上传</strong>
-          <p class="muted">文件将上传到当前目录 {{ currentAbsolutePath }}</p>
+          <p class="muted">文件会直接上传到当前目录 {{ currentPath }}</p>
         </div>
       </div>
 
@@ -516,8 +514,8 @@ onBeforeUnmount(() => {
         :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }"
       >
         <button v-if="contextMenu.entry?.is_directory" class="finder-context-item" @click="openTerminalAt(contextMenu.entry.path, contextMenu.entry.name)">在此处打开终端</button>
-        <button v-if="contextMenu.entry" class="finder-context-item" @click="activateEntry(contextMenu.entry)">打开</button>
-        <button v-if="contextMenu.entry && !contextMenu.entry.is_directory" class="finder-context-item" @click="downloadEntry(contextMenu.entry)">下载</button>
+        <button v-if="contextMenu.entry?.is_directory" class="finder-context-item" @click="activateEntry(contextMenu.entry)">进入目录</button>
+        <button v-if="contextMenu.entry && !contextMenu.entry.is_directory" class="finder-context-item" @click="downloadEntry(contextMenu.entry)">下载文件</button>
         <button v-if="contextMenu.entry" class="finder-context-item" @click="openDialog('rename', contextMenu.entry)">重命名</button>
         <button v-if="contextMenu.entry" class="finder-context-item" @click="openDialog('delete', contextMenu.entry)">删除</button>
         <button class="finder-context-item" @click="openDialog('mkdir')">新建文件夹</button>

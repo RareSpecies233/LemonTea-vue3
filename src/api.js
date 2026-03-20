@@ -1,7 +1,7 @@
 import { reactive, watch } from 'vue'
 
 const initialBaseUrl = localStorage.getItem('lemontea.baseUrl') || 'http://127.0.0.1:18080'
-const initialClientId = localStorage.getItem('lemontea.clientId') || 'raspi-dev-01'
+const initialClientId = localStorage.getItem('lemontea.clientId') || ''
 
 export const appState = reactive({
   baseUrl: initialBaseUrl,
@@ -26,6 +26,14 @@ watch(
 function updateHealthState(payload) {
   appState.transportMode = payload.transport_mode || 'unknown'
   appState.availableClients = Array.isArray(payload.clients) ? payload.clients : []
+  if (appState.availableClients.length > 0) {
+    const hasSelectedClient = appState.availableClients.some((client) => client.client_id === appState.clientId)
+    if (!hasSelectedClient) {
+      appState.clientId = appState.availableClients[0].client_id
+    }
+  } else {
+    appState.clientId = ''
+  }
   appState.lastHealth = payload
   return payload
 }
@@ -64,7 +72,7 @@ export async function connectClient() {
     throw new Error('请输入客户端地址')
   }
   if (!clientId) {
-    throw new Error('请输入客户端 ID')
+    throw new Error('请选择客户端 ID')
   }
 
   await fetchHealth()

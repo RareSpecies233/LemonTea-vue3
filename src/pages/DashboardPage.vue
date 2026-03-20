@@ -22,32 +22,10 @@ const cards = [
 
 <template>
   <section class="dashboard-stack">
-    <div class="hero-card hero-card-wide">
-      <div class="hero-copy">
-        <p class="eyebrow">Home</p>
-        <h3>连接已经建立，接下来选择一个控制面板。</h3>
-        <p class="muted">
-          当前客户端为 {{ appState.clientId }}，前端通过 {{ appState.baseUrl }} 与 LemonTea 服务端通讯，
-          再由服务端转发到 HoneyTea 客户端。
-        </p>
-      </div>
-      <div class="metrics-grid">
-        <div class="metric-card">
-          <p class="eyebrow">Transport</p>
-          <div class="metric-value">{{ health?.transport_mode || 'unknown' }}</div>
-          <p class="muted">TCP / WebRTC 双模式</p>
-        </div>
-        <div class="metric-card">
-          <p class="eyebrow">Target</p>
-          <div class="metric-value metric-value-small">{{ appState.clientId }}</div>
-          <p class="muted">当前连接的 HoneyTea 客户端</p>
-        </div>
-        <div class="metric-card">
-          <p class="eyebrow">Clients</p>
-          <div class="metric-value">{{ clients.length }}</div>
-          <p class="muted">已注册到 LemonTea 的客户端数量</p>
-        </div>
-      </div>
+    <div class="panel-card home-summary-card">
+      <p class="eyebrow">Home</p>
+      <h3>当前会话已连接到 {{ appState.clientId || '未选择客户端' }}</h3>
+      <p class="muted">下方仅保留四个核心入口与 Clients 列表，便于把主要操作集中在主页完成。</p>
     </div>
 
     <div class="home-grid">

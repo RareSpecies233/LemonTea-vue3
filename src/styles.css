@@ -60,6 +60,13 @@ a {
   padding: 32px;
 }
 
+.connect-layout {
+  width: min(1240px, 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 1.12fr) minmax(360px, 420px);
+  gap: 24px;
+}
+
 .connect-card,
 .panel-card,
 .terminal-card,
@@ -79,11 +86,12 @@ a {
 }
 
 .connect-card {
-  width: min(1180px, 100%);
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 420px);
-  gap: 24px;
+  width: 100%;
   padding: 24px;
+}
+
+.connect-card-copy {
+  min-height: 100%;
 }
 
 .connect-copy {
@@ -128,6 +136,32 @@ a {
   padding: 20px;
 }
 
+.connect-form {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.connect-form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.connect-form-header h2 {
+  margin: 6px 0 0;
+}
+
+.connect-tip-list,
+.connect-client-hint,
+.finder-selection-card,
+.home-summary-card {
+  display: grid;
+  gap: 10px;
+}
+
 .wide-button {
   width: 100%;
 }
@@ -148,6 +182,54 @@ a {
   display: flex;
   gap: 16px;
   align-items: stretch;
+}
+
+.app-header-compact {
+  flex-direction: column;
+}
+
+.header-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+}
+
+.header-main-left,
+.header-main-center,
+.status-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.brand-lockup {
+  display: grid;
+  gap: 4px;
+}
+
+.icon-button {
+  min-width: 76px;
+}
+
+.header-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+
+.status-card-thin {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
 }
 
 .brand-inline {
@@ -174,6 +256,19 @@ a {
   gap: 18px;
 }
 
+.app-body-stack {
+  grid-template-columns: minmax(0, 1fr);
+  position: relative;
+}
+
+.nav-drawer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 12;
+  width: min(320px, calc(100vw - 40px));
+}
+
 .nav-strip {
   display: grid;
   align-content: start;
@@ -183,6 +278,17 @@ a {
   border: 1px solid var(--line);
   border-radius: 26px;
   backdrop-filter: blur(14px);
+}
+
+.drawer-fade-enter-active,
+.drawer-fade-leave-active {
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.drawer-fade-enter-from,
+.drawer-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 
 .nav-link {
@@ -368,6 +474,10 @@ a {
   gap: 20px;
 }
 
+.home-summary-card h3 {
+  margin: 6px 0 0;
+}
+
 .hero-card-wide {
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
 }
@@ -473,6 +583,11 @@ a {
   gap: 16px;
 }
 
+.finder-sidebar-footer-stack {
+  display: grid;
+  gap: 12px;
+}
+
 .finder-favorites {
   display: grid;
   gap: 10px;
@@ -549,6 +664,22 @@ a {
   border: 1px solid var(--line);
 }
 
+.finder-action-bar-wrap {
+  align-items: end;
+}
+
+.finder-location-form {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  flex: 1;
+}
+
+.finder-location-field {
+  flex: 1;
+  margin-top: 0;
+}
+
 .finder-action-copy {
   display: grid;
   gap: 4px;
@@ -568,6 +699,10 @@ a {
   grid-template-columns: minmax(0, 1fr) 320px;
   gap: 16px;
   min-height: 620px;
+}
+
+.finder-content-wide {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .finder-icons {
@@ -685,6 +820,13 @@ a {
   border: 1px solid var(--line);
 }
 
+.finder-selection-card {
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.58);
+}
+
 .preview-meta {
   display: grid;
   gap: 6px;
@@ -704,6 +846,10 @@ a {
 .finder-footer {
   display: grid;
   gap: 8px;
+}
+
+.finder-footer-rich {
+  margin-top: auto;
 }
 
 .finder-context-menu {
@@ -793,16 +939,24 @@ a {
   .finder-shell,
   .finder-content,
   .connect-card,
+  .connect-layout,
   .hero-card-wide {
     grid-template-columns: 1fr;
   }
 
   .app-header,
+  .header-main,
   .brand-inline,
   .header-actions,
   .page-header,
   .finder-toolbar,
   .finder-action-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .status-card-thin,
+  .finder-location-form {
     flex-direction: column;
     align-items: stretch;
   }

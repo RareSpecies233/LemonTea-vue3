@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { appState, disconnectClient, fetchHealth } from './api.js'
 import router from './router.js'
@@ -7,6 +7,7 @@ import router from './router.js'
 const route = useRoute()
 const loading = ref(false)
 const error = ref('')
+const sidebarOpen = ref(false)
 
 const navItems = [
   { to: '/', label: '主页', note: '控制台总览' },
@@ -20,6 +21,7 @@ const health = computed(() => appState.lastHealth)
 const pageTitle = computed(() => route.meta.title || navItems.find((item) => item.to === route.path)?.label || 'LemonTea Console')
 const pageNote = computed(() => navItems.find((item) => item.to === route.path)?.note || '面向 HoneyTea / LemonTea 的远程控制界面')
 const isConnectPage = computed(() => route.name === 'connect')
+const onlineClients = computed(() => health.value?.clients?.length ?? 0)
 
 async function refreshHealth() {
   if (!appState.connected) {
@@ -41,11 +43,22 @@ function leaveSession() {
   router.push({ name: 'connect' })
 }
 
+function toggleSidebar() {
+  sidebarOpen.value = !sidebarOpen.value
+}
+
 onMounted(() => {
   if (appState.connected) {
     refreshHealth()
   }
 })
+
+watch(
+  () => route.path,
+  () => {
+    sidebarOpen.value = false
+  }
+)
 </script>
 
 <template>
@@ -54,41 +67,59 @@ onMounted(() => {
   </div>
 
   <div v-else class="app-shell">
-    <header class="app-header">
-      <div class="brand-card brand-inline">
-        <div>
-          <p class="eyebrow">LemonTea Remote Console</p>
-          <h1>柠檬茶终端</h1>
+    <header class="app-header app-header-compact">
+      <div class="header-main panel-card">
+        <div class="header-main-left">
+          <button class="ghost-button icon-button" @click="toggleSidebar">
+            {{ sidebarOpen ? '收起' : '菜单' }}
+          </button>
+          <div class="brand-lockup">
+            <p class="eyebrow">LemonTea Remote Console</p>
+            <strong>柠檬茶终端</strong>
+          </div>
         </div>
-        <p class="muted">已连接到 {{ appState.clientId }}，通过 {{ health?.transport_mode || appState.transportMode }} 模式通讯。</p>
+        <div class="header-main-center">
+          <span class="status-pill">{{ health?.status || 'connected' }}</span>
+          <span class="mini-pill">{{ health?.transport_mode || appState.transportMode }}</span>
+          <span class="header-chip">Client {{ appState.clientId }}</span>
+          <span class="header-chip">在线客户端 {{ onlineClients }}</span>
+        </div>
+        <div class="header-actions">
+          <button class="ghost-button" :disabled="loading" @click="refreshHealth">{{ loading ? '刷新中...' : '刷新状态' }}</button>
+          <button class="danger-button" @click="leaveSession">断开连接</button>
+        </div>
       </div>
 
-      <div class="header-actions">
-        <div class="status-card compact-card">
-          <div>
-            <span class="status-pill">{{ health?.status || 'connected' }}</span>
-            <span class="status-transport">{{ health?.transport_mode || appState.transportMode }}</span>
-          </div>
-          <p class="muted">{{ error || `在线客户端 ${health?.clients?.length ?? 0} 个` }}</p>
+      <div class="status-card status-card-thin">
+        <div>
+          <strong>{{ pageTitle }}</strong>
+          <p class="muted">{{ pageNote }}</p>
         </div>
-        <button class="ghost-button" :disabled="loading" @click="refreshHealth">{{ loading ? '刷新中...' : '刷新状态' }}</button>
-        <button class="danger-button" @click="leaveSession">断开连接</button>
+        <div class="status-card-meta">
+          <span>{{ appState.baseUrl }}</span>
+          <span>{{ error || `通讯模式 ${health?.transport_mode || appState.transportMode}` }}</span>
+        </div>
       </div>
     </header>
 
-    <div class="app-body">
-      <nav class="nav-strip">
-        <RouterLink
-          v-for="item in navItems"
-          :key="item.to"
-          :to="item.to"
-          class="nav-link"
-          :class="{ active: route.path === item.to }"
-        >
-          <span>{{ item.label }}</span>
-          <small>{{ item.note }}</small>
-        </RouterLink>
-      </nav>
+    <div class="app-body app-body-stack">
+      <transition name="drawer-fade">
+        <nav v-if="sidebarOpen" class="nav-drawer">
+          <div class="nav-strip">
+            <p class="eyebrow">Navigate</p>
+            <RouterLink
+              v-for="item in navItems"
+              :key="item.to"
+              :to="item.to"
+              class="nav-link"
+              :class="{ active: route.path === item.to }"
+            >
+              <span>{{ item.label }}</span>
+              <small>{{ item.note }}</small>
+            </RouterLink>
+          </div>
+        </nav>
+      </transition>
 
       <main class="content-panel">
         <header class="page-header">
