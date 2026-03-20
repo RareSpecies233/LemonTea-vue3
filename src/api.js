@@ -173,6 +173,13 @@ export function stopHoneyPlugin(pluginName) {
   })
 }
 
+export function installHoneyPlugin(manifest, files, replace = false) {
+  return request(`/api/clients/${appState.clientId}/plugins/install`, {
+    method: 'POST',
+    body: JSON.stringify({ manifest, files, replace })
+  })
+}
+
 export function listLemonPlugins() {
   return request('/api/server/plugins')
 }
@@ -195,6 +202,13 @@ export function stopLemonPlugin(pluginName) {
   return request(`/api/server/plugins/${pluginName}/stop`, {
     method: 'POST',
     body: JSON.stringify({})
+  })
+}
+
+export function installLemonPlugin(manifest, files, replace = false) {
+  return request('/api/server/plugins/install', {
+    method: 'POST',
+    body: JSON.stringify({ manifest, files, replace })
   })
 }
 
