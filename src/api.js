@@ -81,6 +81,12 @@ export function disconnectClient() {
   appState.connected = false
 }
 
+export function buildWebSocketUrl(path) {
+  const url = new URL(path, appState.baseUrl)
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+  return url.toString()
+}
+
 export function listClients() {
   return request('/api/clients')
 }
@@ -110,6 +116,27 @@ export function writeFile(path, contentBase64) {
   return request(`/api/clients/${appState.clientId}/file/write`, {
     method: 'POST',
     body: JSON.stringify({ path, content_base64: contentBase64 })
+  })
+}
+
+export function createDirectory(path) {
+  return request(`/api/clients/${appState.clientId}/directory/create`, {
+    method: 'POST',
+    body: JSON.stringify({ path })
+  })
+}
+
+export function renamePath(oldPath, newPath) {
+  return request(`/api/clients/${appState.clientId}/path/rename`, {
+    method: 'POST',
+    body: JSON.stringify({ old_path: oldPath, new_path: newPath })
+  })
+}
+
+export function deletePath(path, recursive = true) {
+  return request(`/api/clients/${appState.clientId}/path/delete`, {
+    method: 'POST',
+    body: JSON.stringify({ path, recursive })
   })
 }
 
@@ -165,6 +192,10 @@ export function stopLemonPlugin(pluginName) {
 
 export function encodeBase64(content) {
   const bytes = new TextEncoder().encode(content)
+  return encodeBytesBase64(bytes)
+}
+
+export function encodeBytesBase64(bytes) {
   let binary = ''
   bytes.forEach((byte) => {
     binary += String.fromCharCode(byte)
@@ -173,7 +204,10 @@ export function encodeBase64(content) {
 }
 
 export function decodeBase64(content) {
+  return new TextDecoder().decode(decodeBase64ToBytes(content))
+}
+
+export function decodeBase64ToBytes(content) {
   const binary = atob(content)
-  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
-  return new TextDecoder().decode(bytes)
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0))
 }

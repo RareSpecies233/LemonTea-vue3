@@ -11,7 +11,7 @@ const initialCwd = computed(() => appState.remoteRoot || '~')
     <div class="panel-card note-card">
       <p class="eyebrow">SSH Control</p>
       <p class="muted">
-        当前后端仍提供按行执行的 shell 接口，因此这里实现的是终端式交互壳：支持直接在仿真终端里输入、查看历史输出、保持当前目录、清屏与命令历史。
+        当前页面已经切换为真实 PTY 会话，键盘输入、控制字符、窗口缩放和远端 shell 回显都通过 WebSocket 与 HoneyTea 的终端主设备实时同步。
       </p>
     </div>
     <RemoteTerminal title="SSH 控制" :initial-cwd="initialCwd" />

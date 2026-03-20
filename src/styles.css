@@ -460,6 +460,12 @@ a {
   gap: 18px;
 }
 
+.finder-shell-rich .finder-main {
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 251, 245, 0.96), rgba(251, 243, 234, 0.92));
+}
+
 .finder-sidebar {
   display: flex;
   flex-direction: column;
@@ -500,6 +506,52 @@ a {
 .finder-toolbar {
   justify-content: space-between;
   align-items: center;
+}
+
+.finder-toolbar-rich {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.finder-window-controls {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.finder-window-controls span {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.finder-window-controls span:nth-child(1) {
+  background: #ff5f57;
+}
+
+.finder-window-controls span:nth-child(2) {
+  background: #febc2e;
+}
+
+.finder-window-controls span:nth-child(3) {
+  background: #28c840;
+}
+
+.finder-action-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid var(--line);
+}
+
+.finder-action-copy {
+  display: grid;
+  gap: 4px;
 }
 
 .view-switcher {
@@ -672,6 +724,42 @@ a {
   padding: 10px 12px;
 }
 
+.finder-drop-overlay,
+.finder-dialog-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: rgba(248, 239, 228, 0.74);
+  backdrop-filter: blur(6px);
+}
+
+.finder-drop-overlay > div {
+  padding: 28px 34px;
+  border-radius: 24px;
+  border: 1px dashed rgba(184, 94, 60, 0.36);
+  background: rgba(255, 251, 245, 0.96);
+  text-align: center;
+}
+
+.finder-dialog-card {
+  width: min(420px, calc(100% - 32px));
+  padding: 24px;
+  border-radius: 24px;
+  border: 1px solid var(--line);
+  background: rgba(255, 250, 244, 0.98);
+  box-shadow: 0 24px 60px rgba(58, 37, 25, 0.16);
+}
+
+.finder-dialog-card h3 {
+  margin: 6px 0 0;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
 .terminal-modal {
   position: fixed;
   inset: 0;
@@ -713,7 +801,8 @@ a {
   .brand-inline,
   .header-actions,
   .page-header,
-  .finder-toolbar {
+  .finder-toolbar,
+  .finder-action-bar {
     flex-direction: column;
     align-items: stretch;
   }
