@@ -26,16 +26,12 @@ watch(
 function updateHealthState(payload) {
   appState.transportMode = payload.transport_mode || 'unknown'
   appState.availableClients = Array.isArray(payload.clients) ? payload.clients : []
-  if (appState.availableClients.length > 0) {
-    const hasSelectedClient = appState.availableClients.some((client) => client.client_id === appState.clientId)
-    if (!hasSelectedClient) {
-      appState.clientId = appState.availableClients[0].client_id
-    }
-  } else {
-    appState.clientId = ''
-  }
   appState.lastHealth = payload
   return payload
+}
+
+function clientApiPath(suffix) {
+  return `/api/clients/${encodeURIComponent(appState.clientId)}/${suffix}`
 }
 
 async function request(path, options = {}) {
@@ -103,7 +99,7 @@ export function listClients() {
 }
 
 export function runShell(command, options = {}) {
-  return request(`/api/clients/${appState.clientId}/shell`, {
+  return request(clientApiPath('shell'), {
     method: 'POST',
     body: JSON.stringify({ command }),
     signal: options.signal
@@ -112,7 +108,7 @@ export function runShell(command, options = {}) {
 
 export async function listFiles(path = '') {
   const query = path ? `?path=${encodeURIComponent(path)}` : ''
-  const payload = await request(`/api/clients/${appState.clientId}/files${query}`)
+  const payload = await request(`${clientApiPath('files')}${query}`)
   if (payload?.data?.root) {
     appState.remoteRoot = payload.data.root
   }
@@ -120,64 +116,64 @@ export async function listFiles(path = '') {
 }
 
 export function readFile(path) {
-  return request(`/api/clients/${appState.clientId}/file?path=${encodeURIComponent(path)}`)
+  return request(`${clientApiPath('file')}?path=${encodeURIComponent(path)}`)
 }
 
 export function writeFile(path, contentBase64) {
-  return request(`/api/clients/${appState.clientId}/file/write`, {
+  return request(clientApiPath('file/write'), {
     method: 'POST',
     body: JSON.stringify({ path, content_base64: contentBase64 })
   })
 }
 
 export function createDirectory(path) {
-  return request(`/api/clients/${appState.clientId}/directory/create`, {
+  return request(clientApiPath('directory/create'), {
     method: 'POST',
     body: JSON.stringify({ path })
   })
 }
 
 export function renamePath(oldPath, newPath) {
-  return request(`/api/clients/${appState.clientId}/path/rename`, {
+  return request(clientApiPath('path/rename'), {
     method: 'POST',
     body: JSON.stringify({ old_path: oldPath, new_path: newPath })
   })
 }
 
 export function deletePath(path, recursive = true) {
-  return request(`/api/clients/${appState.clientId}/path/delete`, {
+  return request(clientApiPath('path/delete'), {
     method: 'POST',
     body: JSON.stringify({ path, recursive })
   })
 }
 
 export function listHoneyPlugins() {
-  return request(`/api/clients/${appState.clientId}/plugins`)
+  return request(clientApiPath('plugins'))
 }
 
 export function callHoneyPlugin(pluginName, action, payload = {}) {
-  return request(`/api/clients/${appState.clientId}/plugins/${pluginName}/call`, {
+  return request(`${clientApiPath(`plugins/${pluginName}/call`)}`, {
     method: 'POST',
     body: JSON.stringify({ action, payload })
   })
 }
 
 export function startHoneyPlugin(pluginName) {
-  return request(`/api/clients/${appState.clientId}/plugins/${pluginName}/start`, {
+  return request(`${clientApiPath(`plugins/${pluginName}/start`)}`, {
     method: 'POST',
     body: JSON.stringify({})
   })
 }
 
 export function stopHoneyPlugin(pluginName) {
-  return request(`/api/clients/${appState.clientId}/plugins/${pluginName}/stop`, {
+  return request(`${clientApiPath(`plugins/${pluginName}/stop`)}`, {
     method: 'POST',
     body: JSON.stringify({})
   })
 }
 
 export function installHoneyPlugin(manifest, files, replace = false) {
-  return request(`/api/clients/${appState.clientId}/plugins/install`, {
+  return request(clientApiPath('plugins/install'), {
     method: 'POST',
     body: JSON.stringify({ manifest, files, replace })
   })
