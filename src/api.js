@@ -2,11 +2,12 @@ import { reactive, watch } from 'vue'
 
 const initialBaseUrl = localStorage.getItem('lemontea.baseUrl') || 'http://127.0.0.1:18080'
 const initialClientId = localStorage.getItem('lemontea.clientId') || ''
+const initialConnected = localStorage.getItem('lemontea.connected') === 'true' && Boolean(initialBaseUrl.trim()) && Boolean(initialClientId.trim())
 
 export const appState = reactive({
   baseUrl: initialBaseUrl,
   clientId: initialClientId,
-  connected: false,
+  connected: initialConnected,
   transportMode: 'unknown',
   availableClients: [],
   remoteRoot: '',
@@ -21,6 +22,11 @@ watch(
 watch(
   () => appState.clientId,
   (value) => localStorage.setItem('lemontea.clientId', value)
+)
+
+watch(
+  () => appState.connected,
+  (value) => localStorage.setItem('lemontea.connected', String(value))
 )
 
 function updateHealthState(payload) {

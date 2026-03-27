@@ -19,7 +19,12 @@ const router = createRouter({
   ]
 })
 
+const publicShellToken = typeof window !== 'undefined' ? window.location.pathname === '/shell' && window.opener && localStorage.getItem('lemontea.connected') === 'true' : false
+
 router.beforeEach((to) => {
+  if (publicShellToken) {
+    appState.connected = true
+  }
   if (to.meta.requiresConnection && !appState.connected) {
     return { name: 'connect' }
   }

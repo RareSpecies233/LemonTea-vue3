@@ -58,11 +58,11 @@ onMounted(() => {
         <span class="header-chip">{{ appState.baseUrl }}</span>
       </div>
       <nav class="workspace-nav">
-        <RouterLink v-for="item in navItems" :key="item.to" :to="item.to" class="workspace-nav-link" :class="{ active: route.path === item.to }">
+        <RouterLink v-for="item in navItems" :key="item.to" :to="item.to" class="workspace-nav-link workspace-nav-action" :class="{ active: route.path === item.to }">
           {{ item.label }}
         </RouterLink>
-        <button class="ghost-button" :disabled="loading" @click="refreshHealth">{{ loading ? '刷新中...' : '刷新' }}</button>
-        <button class="danger-button" @click="leaveSession">断开</button>
+        <button class="workspace-nav-action" :disabled="loading" @click="refreshHealth">{{ loading ? '刷新中...' : '刷新' }}</button>
+        <button class="workspace-nav-action" @click="leaveSession">断开</button>
       </nav>
     </header>
 

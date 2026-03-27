@@ -12,13 +12,13 @@ const rootPath = ref('/')
 const items = ref([])
 const directoryWarnings = ref([])
 const selectedItem = ref(null)
-const recentPaths = ref([])
 const locationInput = ref('~')
 const contextMenu = ref({ visible: false, x: 0, y: 0, entry: null })
 const dialog = ref({ visible: false, type: '', title: '', value: '', entry: null })
 const fileInput = ref(null)
 const shortcutDialog = ref({ visible: false, index: -1, label: '', path: '' })
 const customShortcuts = ref([])
+const shortcutMenu = ref({ visible: false, x: 0, y: 0, index: -1 })
 
 const CUSTOM_SHORTCUTS_KEY = 'lemontea.files.shortcuts'
 
@@ -38,13 +38,6 @@ function normalizePath(path) {
   return path
 }
 
-function basename(path) {
-  if (!path || path === '/') {
-    return '/'
-  }
-  return path.split('/').filter(Boolean).pop() || path
-}
-
 function parentPath(path) {
   if (!path || path === '/' || path === '~') {
     return '/'
@@ -62,9 +55,14 @@ function joinPath(base, name) {
   return `${base.replace(/\/$/, '')}/${name}`
 }
 
-function rememberPath(path) {
-  const normalized = normalizePath(path)
-  recentPaths.value = [normalized, ...recentPaths.value.filter((item) => item !== normalized)].slice(0, 8)
+function displayPath(path) {
+  if (!path || path === '~') {
+    return '用户主目录'
+  }
+  if (path === '/') {
+    return '文件系统根目录'
+  }
+  return path
 }
 
 function loadCustomShortcuts() {
@@ -90,7 +88,6 @@ async function browse(path = currentPath.value || '~') {
     directoryWarnings.value = Array.isArray(data.warnings) ? data.warnings : []
     locationInput.value = currentPath.value
     items.value = sortEntries(data.entries || [])
-    rememberPath(currentPath.value)
     if (selectedItem.value) {
       selectedItem.value = items.value.find((entry) => entry.path === selectedItem.value.path) || null
     }
@@ -112,6 +109,7 @@ async function activateEntry(entry) {
 
 function openContextMenu(event, entry = null) {
   event.preventDefault()
+  closeShortcutMenu()
   if (entry) {
     selectedItem.value = entry
   }
@@ -127,6 +125,21 @@ function closeContextMenu() {
   contextMenu.value = { visible: false, x: 0, y: 0, entry: null }
 }
 
+function openShortcutMenu(event, index) {
+  event.preventDefault()
+  closeContextMenu()
+  shortcutMenu.value = {
+    visible: true,
+    x: event.clientX,
+    y: event.clientY,
+    index
+  }
+}
+
+function closeShortcutMenu() {
+  shortcutMenu.value = { visible: false, x: 0, y: 0, index: -1 }
+}
+
 function openTerminalAt(path, label) {
   const target = router.resolve({ name: 'shell', query: { cwd: path, title: label } })
   window.open(target.href, '_blank', 'noopener,noreferrer')
@@ -136,6 +149,7 @@ function openTerminalAt(path, label) {
 function triggerUpload() {
   fileInput.value?.click()
   closeContextMenu()
+  closeShortcutMenu()
 }
 
 async function handleUploadSelection(event) {
@@ -223,9 +237,11 @@ async function submitDialog() {
 
 function handleGlobalClick() {
   closeContextMenu()
+  closeShortcutMenu()
 }
 
 function openShortcutDialog(index = -1) {
+  closeShortcutMenu()
   const existing = index >= 0 ? customShortcuts.value[index] : { label: '', path: '' }
   shortcutDialog.value = {
     visible: true,
@@ -262,6 +278,7 @@ function saveShortcut() {
 function removeShortcut(index) {
   customShortcuts.value = customShortcuts.value.filter((_, itemIndex) => itemIndex !== index)
   persistCustomShortcuts()
+  closeShortcutMenu()
 }
 
 async function submitLocation() {
@@ -271,13 +288,8 @@ async function submitLocation() {
 const favoriteItems = computed(() => {
   const favorites = [
     { label: 'Home', path: '~', description: '用户主目录' },
-    { label: 'Root', path: '/', description: '文件系统根目录' },
-    { label: '启动目录', path: rootPath.value, description: 'HoneyTea 启动目录' }
+    { label: 'Root', path: '/', description: '文件系统根目录' }
   ]
-
-  recentPaths.value
-    .filter((path) => path && path !== currentPath.value && !favorites.some((item) => item.path === path))
-    .forEach((path) => favorites.push({ label: basename(path), path, description: path }))
 
   customShortcuts.value.forEach((shortcut) => {
     favorites.push({ label: shortcut.label, path: shortcut.path, description: shortcut.path, custom: true })
@@ -285,7 +297,6 @@ const favoriteItems = computed(() => {
 
   return favorites
 })
-const editableShortcuts = computed(() => customShortcuts.value.map((shortcut, index) => ({ ...shortcut, index })))
 const canDownload = computed(() => selectedItem.value && !selectedItem.value.is_directory)
 const canRename = computed(() => Boolean(selectedItem.value))
 const canDelete = computed(() => Boolean(selectedItem.value))
@@ -325,7 +336,7 @@ onBeforeUnmount(() => {
         <p class="eyebrow">快捷访问</p>
         <div class="file-shortcut-list">
           <div v-for="(favorite, index) in favoriteItems" :key="favorite.path + favorite.label" class="file-shortcut-item-wrap">
-            <button class="file-shortcut-item" @click="browse(favorite.path)">
+            <button class="file-shortcut-item" @click="browse(favorite.path)" @contextmenu="favorite.custom ? openShortcutMenu($event, index - 2) : undefined">
               <span>{{ favorite.label }}</span>
               <small>{{ favorite.description }}</small>
             </button>
@@ -333,19 +344,6 @@ onBeforeUnmount(() => {
         </div>
         <div class="stack-actions">
           <button class="ghost-button" @click="openShortcutDialog()">新增快捷访问</button>
-        </div>
-        <div v-if="editableShortcuts.length" class="shortcut-editor-list">
-          <p class="eyebrow">自定义项目</p>
-          <div v-for="shortcut in editableShortcuts" :key="shortcut.index + shortcut.path + shortcut.label" class="file-shortcut-editor">
-            <div>
-              <strong>{{ shortcut.label }}</strong>
-              <small>{{ shortcut.path }}</small>
-            </div>
-            <div class="file-shortcut-actions">
-              <button class="ghost-button compact-action" @click="openShortcutDialog(shortcut.index)">编辑</button>
-              <button class="ghost-button compact-action" @click="removeShortcut(shortcut.index)">删除</button>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -372,7 +370,7 @@ onBeforeUnmount(() => {
           <button class="ghost-button" :disabled="loading" @click="browse(currentPath)">{{ loading ? '读取中...' : '刷新' }}</button>
           <button class="ghost-button" @click="triggerUpload">上传文件</button>
           <button class="ghost-button" @click="openDialog('mkdir')">新建文件夹</button>
-          <button class="ghost-button" :disabled="!selectedItem?.is_directory" @click="selectedItem && openTerminalAt(selectedItem.path, selectedItem.name)">在此处打开终端</button>
+          <button class="ghost-button" :disabled="!currentPath" @click="openTerminalAt(currentPath, displayPath(currentPath))">在当前目录打开终端</button>
         </div>
       </header>
 
@@ -439,6 +437,15 @@ onBeforeUnmount(() => {
         <button class="finder-context-item" @click="openDialog('mkdir')">新建文件夹</button>
         <button class="finder-context-item" @click="triggerUpload">上传文件</button>
         <button class="finder-context-item" @click="browse(currentPath)">刷新目录</button>
+      </div>
+
+      <div
+        v-if="shortcutMenu.visible"
+        class="finder-context-menu"
+        :style="{ left: `${shortcutMenu.x}px`, top: `${shortcutMenu.y}px` }"
+      >
+        <button class="finder-context-item" @click="openShortcutDialog(shortcutMenu.index)">编辑快捷访问</button>
+        <button class="finder-context-item" @click="removeShortcut(shortcutMenu.index)">删除快捷访问</button>
       </div>
 
       <div v-if="dialog.visible" class="finder-dialog-mask">

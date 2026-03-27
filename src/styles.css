@@ -1203,7 +1203,7 @@ a {
 
 .workspace-header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 720px;
+  grid-template-columns: minmax(0, 1fr) 360px;
   align-items: center;
   gap: 14px;
   padding: 14px 16px;
@@ -1219,20 +1219,49 @@ a {
 }
 
 .workspace-nav {
-  width: 720px;
+  width: 360px;
   justify-content: flex-end;
-  flex: 0 0 720px;
+  flex: 0 0 360px;
+  flex-wrap: nowrap;
+  gap: 6px;
 }
 
 .workspace-nav-link {
   text-decoration: none;
-  padding: 10px 14px;
+  padding: 9px 10px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.56);
   border: 1px solid transparent;
   transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
-  min-width: 128px;
+  min-width: 0;
   text-align: center;
+}
+
+.workspace-nav-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.56);
+  border: 1px solid transparent;
+  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+  white-space: nowrap;
+  color: var(--ink);
+}
+
+.workspace-nav-action.active,
+.workspace-nav-action:hover {
+  background: rgba(244, 217, 199, 0.55);
+  border-color: rgba(184, 94, 60, 0.28);
+}
+
+.workspace-nav-link,
+.workspace-nav-action {
+  flex: 1 1 0;
+  font-size: 0.82rem;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .workspace-nav-link.active {
@@ -1286,16 +1315,7 @@ a {
   margin-top: 14px;
 }
 
-.shortcut-editor-list {
-  display: grid;
-  gap: 10px;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
-}
-
-.file-shortcut-item-wrap,
-.file-shortcut-editor {
+.file-shortcut-item-wrap {
   display: grid;
   gap: 8px;
 }
@@ -1309,25 +1329,13 @@ a {
   cursor: pointer;
 }
 
-.file-shortcut-item span,
-.file-shortcut-editor strong {
+.file-shortcut-item span {
   display: block;
 }
 
-.file-shortcut-item small,
-.file-shortcut-editor small {
+.file-shortcut-item small {
   color: var(--muted);
   word-break: break-all;
-}
-
-.file-shortcut-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.compact-action {
-  padding: 8px 10px;
 }
 
 .file-sidebar-footer {
