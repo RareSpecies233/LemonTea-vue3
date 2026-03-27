@@ -276,10 +276,10 @@ export function installHoneyPlugin(manifest, files, replace = false) {
   })
 }
 
-export function updateHoneyFirmware(filename, contentBase64 = '', stagedPath = '') {
+export function updateHoneyFirmware(filename, contentBase64 = '', stagedPath = '', restartOnly = false) {
   return request(clientApiPath('firmware'), {
     method: 'POST',
-    body: JSON.stringify({ filename, content_base64: contentBase64, staged_path: stagedPath })
+    body: JSON.stringify({ filename, content_base64: contentBase64, staged_path: stagedPath, restart_only: restartOnly })
   })
 }
 

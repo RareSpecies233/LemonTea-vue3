@@ -32,6 +32,9 @@ let resizeListener
 let hostResizeObserver
 let ptySessionId = ''
 const decoder = new TextDecoder()
+const encoder = new TextEncoder()
+let fitRafId = 0
+let fitScheduled = false
 
 const statusPill = computed(() => isConnected.value ? '已连接' : terminalStatus.value)
 
@@ -56,6 +59,17 @@ function fitTerminal() {
   }
 }
 
+function scheduleFitTerminal() {
+  if (fitScheduled) {
+    return
+  }
+  fitScheduled = true
+  fitRafId = window.requestAnimationFrame(() => {
+    fitScheduled = false
+    fitTerminal()
+  })
+}
+
 function writeBytes(base64Content) {
   const chunk = decodeBase64ToBytes(base64Content)
   term.write(decoder.decode(chunk, { stream: true }))
@@ -66,7 +80,7 @@ function attachSocket() {
 
   socket.addEventListener('open', () => {
     terminalStatus.value = '握手中'
-    fitTerminal()
+    scheduleFitTerminal()
     sendMessage({
       action: 'open',
       client_id: appState.clientId,
@@ -137,7 +151,11 @@ function mountTerminal() {
   fitAddon = new FitAddon()
   term = new Terminal({
     convertEol: true,
-    cursorBlink: true,
+    cursorBlink: false,
+    rendererType: 'dom',
+    smoothScrollDuration: 0,
+    fastScrollModifier: 'alt',
+    fastScrollSensitivity: 2,
     fontFamily: 'IBM Plex Mono, monospace',
     fontSize: props.compact ? 12 : 13,
     lineHeight: 1.25,
@@ -160,7 +178,7 @@ function mountTerminal() {
   })
   term.loadAddon(fitAddon)
   term.open(terminalHost.value)
-  fitTerminal()
+  scheduleFitTerminal()
   term.focus()
   term.write(`${props.title}\r\n目标客户端 ${appState.clientId}\r\n`)
   term.write('正在建立 PTY 会话...\r\n')
@@ -169,7 +187,7 @@ function mountTerminal() {
     if (!isConnected.value) {
       return
     }
-    const bytes = new TextEncoder().encode(data)
+    const bytes = encoder.encode(data)
     sendMessage({
       action: 'input',
       data_base64: encodeBytesBase64(bytes)
@@ -183,10 +201,10 @@ function mountTerminal() {
     sendMessage({ action: 'resize', rows, cols })
   })
 
-  resizeListener = () => fitTerminal()
+  resizeListener = () => scheduleFitTerminal()
   window.addEventListener('resize', resizeListener)
   if (typeof ResizeObserver !== 'undefined' && terminalHost.value) {
-    hostResizeObserver = new ResizeObserver(() => fitTerminal())
+    hostResizeObserver = new ResizeObserver(() => scheduleFitTerminal())
     hostResizeObserver.observe(terminalHost.value)
   }
   attachSocket()
@@ -199,6 +217,11 @@ watch(() => props.initialCwd, (value) => {
 onMounted(mountTerminal)
 
 onBeforeUnmount(() => {
+  if (fitRafId) {
+    window.cancelAnimationFrame(fitRafId)
+    fitRafId = 0
+    fitScheduled = false
+  }
   if (resizeListener) {
     window.removeEventListener('resize', resizeListener)
   }

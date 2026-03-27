@@ -377,7 +377,7 @@ const explorerRows = computed(() => {
   })
   return rows
 })
-const selectedPath = computed(() => selectedItem.value?.path || '未选择')
+const currentDisplayPath = computed(() => selectedItem.value?.path || currentPath.value || '/')
 const uploadPercent = computed(() => {
   const total = uploadState.value.totalBytes
   if (!total) {
@@ -486,8 +486,7 @@ onBeforeUnmount(() => {
       </div>
 
       <footer class="file-path-footer">
-        <span>当前目录：{{ currentPath || '/' }}</span>
-        <span>选中路径：{{ selectedPath }}</span>
+        <span>当前路径：{{ currentDisplayPath }}</span>
       </footer>
 
       <div

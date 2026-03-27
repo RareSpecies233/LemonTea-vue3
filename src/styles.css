@@ -1315,9 +1315,9 @@ a {
 
 .workspace-nav-link,
 .workspace-nav-action {
-  height: 28px;
+  height: 22px;
   flex: 1 1 0;
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   line-height: 1;
   white-space: nowrap;
   box-sizing: border-box;
@@ -1502,7 +1502,10 @@ a {
 }
 
 .file-row {
+  width: 100%;
   padding: 0;
+  border: 0;
+  font: inherit;
   text-align: left;
   border-top: 1px solid var(--line);
   background: transparent;
@@ -1515,6 +1518,10 @@ a {
 
 .file-col-size {
   text-align: right;
+}
+
+.file-col-type {
+  text-align: left;
 }
 
 .file-row-name {

@@ -150,6 +150,19 @@ async function installFirmware() {
   }
 }
 
+async function restartHoneytea() {
+  error.value = ''
+  firmwareUpdating.value = true
+  try {
+    const payload = await updateHoneyFirmware('honeytea', '', '', true)
+    result.value = JSON.stringify(payload, null, 2)
+  } catch (err) {
+    error.value = err.message
+  } finally {
+    firmwareUpdating.value = false
+  }
+}
+
 refresh()
 </script>
 
@@ -221,6 +234,9 @@ refresh()
       <div class="stack-actions">
         <button class="danger-button" :disabled="firmwareUpdating || !firmwareFile" @click="installFirmware">
           {{ firmwareUpdating ? '更新中...' : '更新 HoneyTea 固件' }}
+        </button>
+        <button class="ghost-button" :disabled="firmwareUpdating" @click="restartHoneytea">
+          {{ firmwareUpdating ? '处理中...' : '仅重启 HoneyTea' }}
         </button>
       </div>
       <div class="plugin-guideline-note">

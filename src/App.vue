@@ -19,6 +19,7 @@ const navItems = [
 
 const health = computed(() => appState.lastHealth)
 const isConnectPage = computed(() => route.name === 'connect')
+const showTopHeader = computed(() => route.name === 'dashboard')
 
 function isCurrentClientAlive(payload) {
   const clients = Array.isArray(payload?.clients) ? payload.clients : []
@@ -99,7 +100,7 @@ onBeforeUnmount(stopHealthTimer)
 
 <template>
   <div class="workspace-shell">
-    <header class="workspace-header panel-card">
+    <header v-if="showTopHeader" class="workspace-header panel-card">
       <div class="workspace-status">
         <span class="status-pill" :class="{ 'status-pill-offline': !appState.connected }">{{ appState.connected ? (health?.transport_mode || appState.transportMode || 'unknown') : 'offline' }}</span>
         <span class="header-chip" :title="appState.clientId || '未连接'">{{ appState.clientId || '未连接' }}</span>
@@ -117,7 +118,6 @@ onBeforeUnmount(stopHealthTimer)
         >
           {{ item.short }}
         </RouterLink>
-        <button class="workspace-nav-action" :disabled="loading || !appState.connected" @click="refreshHealth">{{ loading ? '刷新中...' : '刷新' }}</button>
         <button class="workspace-nav-action" :disabled="!appState.connected" @click="leaveSession">断开</button>
       </nav>
     </header>
