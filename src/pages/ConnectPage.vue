@@ -26,7 +26,7 @@ async function submit() {
     <form class="connect-minimal-card panel-card" @submit.prevent="submit">
       <p class="eyebrow">LemonTea</p>
       <h1>连接客户端</h1>
-      <p class="muted">输入客户端连接地址和客户端 ID，连接成功后进入主页。</p>
+      <p class="muted">输入客户端连接地址和客户端 ID:</p>
 
       <label class="field-label">
         <span>客户端连接地址</span>

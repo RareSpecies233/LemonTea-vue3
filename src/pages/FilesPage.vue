@@ -379,12 +379,6 @@ onBeforeUnmount(() => {
         <button class="primary-button" type="submit">进入</button>
       </form>
 
-      <div class="file-status-bar">
-        <span class="header-chip">当前目录 {{ currentPath }}</span>
-        <span class="header-chip">启动目录 {{ rootPath }}</span>
-        <span class="header-chip">{{ itemCountLabel }}</span>
-      </div>
-
       <div v-if="error" class="finder-alert finder-alert-error">
         <strong>文件请求失败</strong>
         <p class="muted">{{ error }}</p>
