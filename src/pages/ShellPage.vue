@@ -1,9 +1,11 @@
 <script setup>
 import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import RemoteTerminal from '../components/RemoteTerminal.vue'
 import { appState } from '../api.js'
 
-const initialCwd = computed(() => appState.remoteRoot || '~')
+const route = useRoute()
+const initialCwd = computed(() => String(route.query.cwd || appState.remoteRoot || '~'))
 </script>
 
 <template>

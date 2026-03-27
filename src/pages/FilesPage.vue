@@ -1,11 +1,12 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import RemoteTerminal from '../components/RemoteTerminal.vue'
-import { decodeBase64ToBytes, deletePath, listFiles, readFile, renamePath } from '../api.js'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { createDirectory, decodeBase64ToBytes, deletePath, encodeBytesBase64, listFiles, readFile, renamePath, writeFile } from '../api.js'
 
 const loading = ref(false)
 const actionLoading = ref(false)
 const error = ref('')
+const router = useRouter()
 const currentPath = ref('')
 const rootPath = ref('/')
 const items = ref([])
@@ -14,8 +15,12 @@ const selectedItem = ref(null)
 const recentPaths = ref([])
 const locationInput = ref('~')
 const contextMenu = ref({ visible: false, x: 0, y: 0, entry: null })
-const terminalPanel = ref({ visible: false, cwd: '~', title: '终端' })
 const dialog = ref({ visible: false, type: '', title: '', value: '', entry: null })
+const fileInput = ref(null)
+const shortcutDialog = ref({ visible: false, index: -1, label: '', path: '' })
+const customShortcuts = ref([])
+
+const CUSTOM_SHORTCUTS_KEY = 'lemontea.files.shortcuts'
 
 function sortEntries(entries) {
   return [...entries].sort((left, right) => {
@@ -60,6 +65,18 @@ function joinPath(base, name) {
 function rememberPath(path) {
   const normalized = normalizePath(path)
   recentPaths.value = [normalized, ...recentPaths.value.filter((item) => item !== normalized)].slice(0, 8)
+}
+
+function loadCustomShortcuts() {
+  try {
+    return JSON.parse(localStorage.getItem(CUSTOM_SHORTCUTS_KEY) || '[]')
+  } catch {
+    return []
+  }
+}
+
+function persistCustomShortcuts() {
+  localStorage.setItem(CUSTOM_SHORTCUTS_KEY, JSON.stringify(customShortcuts.value))
 }
 
 async function browse(path = currentPath.value || '~') {
@@ -111,12 +128,35 @@ function closeContextMenu() {
 }
 
 function openTerminalAt(path, label) {
-  terminalPanel.value = {
-    visible: true,
-    cwd: path,
-    title: `终端 · ${label}`
-  }
+  const target = router.resolve({ name: 'shell', query: { cwd: path, title: label } })
+  window.open(target.href, '_blank', 'noopener,noreferrer')
   closeContextMenu()
+}
+
+function triggerUpload() {
+  fileInput.value?.click()
+  closeContextMenu()
+}
+
+async function handleUploadSelection(event) {
+  const files = Array.from(event.target.files || [])
+  event.target.value = ''
+  if (!files.length) {
+    return
+  }
+  actionLoading.value = true
+  error.value = ''
+  try {
+    for (const file of files) {
+      const bytes = new Uint8Array(await file.arrayBuffer())
+      await writeFile(joinPath(currentPath.value, file.name), encodeBytesBase64(bytes))
+    }
+    await browse(currentPath.value)
+  } catch (err) {
+    error.value = err.message
+  } finally {
+    actionLoading.value = false
+  }
 }
 
 async function downloadEntry(entry = selectedItem.value) {
@@ -144,7 +184,9 @@ async function downloadEntry(entry = selectedItem.value) {
 }
 
 function openDialog(type, entry = null) {
-  if (type === 'rename' && entry) {
+  if (type === 'mkdir') {
+    dialog.value = { visible: true, type, title: '新建文件夹', value: '', entry: null }
+  } else if (type === 'rename' && entry) {
     dialog.value = { visible: true, type, title: '重命名', value: entry.name, entry }
   } else if (type === 'delete' && entry) {
     dialog.value = { visible: true, type, title: '删除确认', value: entry.name, entry }
@@ -160,7 +202,9 @@ async function submitDialog() {
   actionLoading.value = true
   error.value = ''
   try {
-    if (dialog.value.type === 'rename' && dialog.value.entry) {
+    if (dialog.value.type === 'mkdir') {
+      await createDirectory(joinPath(currentPath.value, dialog.value.value.trim()))
+    } else if (dialog.value.type === 'rename' && dialog.value.entry) {
       await renamePath(dialog.value.entry.path, joinPath(parentPath(dialog.value.entry.path), dialog.value.value.trim()))
     } else if (dialog.value.type === 'delete' && dialog.value.entry) {
       await deletePath(dialog.value.entry.path, true)
@@ -181,6 +225,45 @@ function handleGlobalClick() {
   closeContextMenu()
 }
 
+function openShortcutDialog(index = -1) {
+  const existing = index >= 0 ? customShortcuts.value[index] : { label: '', path: '' }
+  shortcutDialog.value = {
+    visible: true,
+    index,
+    label: existing.label,
+    path: existing.path
+  }
+}
+
+function closeShortcutDialog() {
+  shortcutDialog.value = { visible: false, index: -1, label: '', path: '' }
+}
+
+function saveShortcut() {
+  const next = [...customShortcuts.value]
+  const payload = {
+    label: shortcutDialog.value.label.trim(),
+    path: shortcutDialog.value.path.trim()
+  }
+  if (!payload.label || !payload.path) {
+    error.value = '快捷访问名称和地址不能为空'
+    return
+  }
+  if (shortcutDialog.value.index >= 0) {
+    next.splice(shortcutDialog.value.index, 1, payload)
+  } else {
+    next.push(payload)
+  }
+  customShortcuts.value = next
+  persistCustomShortcuts()
+  closeShortcutDialog()
+}
+
+function removeShortcut(index) {
+  customShortcuts.value = customShortcuts.value.filter((_, itemIndex) => itemIndex !== index)
+  persistCustomShortcuts()
+}
+
 async function submitLocation() {
   await browse(locationInput.value.trim() || '/')
 }
@@ -196,8 +279,13 @@ const favoriteItems = computed(() => {
     .filter((path) => path && path !== currentPath.value && !favorites.some((item) => item.path === path))
     .forEach((path) => favorites.push({ label: basename(path), path, description: path }))
 
+  customShortcuts.value.forEach((shortcut) => {
+    favorites.push({ label: shortcut.label, path: shortcut.path, description: shortcut.path, custom: true })
+  })
+
   return favorites
 })
+const editableShortcuts = computed(() => customShortcuts.value.map((shortcut, index) => ({ ...shortcut, index })))
 const canDownload = computed(() => selectedItem.value && !selectedItem.value.is_directory)
 const canRename = computed(() => Boolean(selectedItem.value))
 const canDelete = computed(() => Boolean(selectedItem.value))
@@ -216,9 +304,12 @@ const selectedSummary = computed(() => {
 })
 
 onMounted(async () => {
+  customShortcuts.value = loadCustomShortcuts()
   window.addEventListener('click', handleGlobalClick)
   await browse('~')
 })
+
+watch(customShortcuts, persistCustomShortcuts, { deep: true })
 
 onBeforeUnmount(() => {
   window.removeEventListener('click', handleGlobalClick)
@@ -227,14 +318,34 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="file-workspace">
+    <input ref="fileInput" type="file" multiple class="hidden-file-input" @change="handleUploadSelection" />
+
     <aside class="file-sidebar panel-card">
       <div>
         <p class="eyebrow">快捷访问</p>
         <div class="file-shortcut-list">
-          <button v-for="favorite in favoriteItems" :key="favorite.path + favorite.label" class="file-shortcut-item" @click="browse(favorite.path)">
-            <span>{{ favorite.label }}</span>
-            <small>{{ favorite.description }}</small>
-          </button>
+          <div v-for="(favorite, index) in favoriteItems" :key="favorite.path + favorite.label" class="file-shortcut-item-wrap">
+            <button class="file-shortcut-item" @click="browse(favorite.path)">
+              <span>{{ favorite.label }}</span>
+              <small>{{ favorite.description }}</small>
+            </button>
+          </div>
+        </div>
+        <div class="stack-actions">
+          <button class="ghost-button" @click="openShortcutDialog()">新增快捷访问</button>
+        </div>
+        <div v-if="editableShortcuts.length" class="shortcut-editor-list">
+          <p class="eyebrow">自定义项目</p>
+          <div v-for="shortcut in editableShortcuts" :key="shortcut.index + shortcut.path + shortcut.label" class="file-shortcut-editor">
+            <div>
+              <strong>{{ shortcut.label }}</strong>
+              <small>{{ shortcut.path }}</small>
+            </div>
+            <div class="file-shortcut-actions">
+              <button class="ghost-button compact-action" @click="openShortcutDialog(shortcut.index)">编辑</button>
+              <button class="ghost-button compact-action" @click="removeShortcut(shortcut.index)">删除</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -259,6 +370,8 @@ onBeforeUnmount(() => {
         <div class="inline-actions">
           <button class="ghost-button" :disabled="currentPath === '/'" @click="browse(parentPath(currentPath))">上一级</button>
           <button class="ghost-button" :disabled="loading" @click="browse(currentPath)">{{ loading ? '读取中...' : '刷新' }}</button>
+          <button class="ghost-button" @click="triggerUpload">上传文件</button>
+          <button class="ghost-button" @click="openDialog('mkdir')">新建文件夹</button>
           <button class="ghost-button" :disabled="!selectedItem?.is_directory" @click="selectedItem && openTerminalAt(selectedItem.path, selectedItem.name)">在此处打开终端</button>
         </div>
       </header>
@@ -323,20 +436,9 @@ onBeforeUnmount(() => {
         <button v-if="contextMenu.entry && !contextMenu.entry.is_directory" class="finder-context-item" @click="downloadEntry(contextMenu.entry)">下载文件</button>
         <button v-if="contextMenu.entry" class="finder-context-item" @click="openDialog('rename', contextMenu.entry)">重命名</button>
         <button v-if="contextMenu.entry" class="finder-context-item" @click="openDialog('delete', contextMenu.entry)">删除</button>
+        <button class="finder-context-item" @click="openDialog('mkdir')">新建文件夹</button>
+        <button class="finder-context-item" @click="triggerUpload">上传文件</button>
         <button class="finder-context-item" @click="browse(currentPath)">刷新目录</button>
-      </div>
-
-      <div v-if="terminalPanel.visible" class="terminal-modal">
-        <div class="terminal-modal-card">
-          <div class="terminal-modal-header">
-            <div>
-              <p class="eyebrow">Embedded Terminal</p>
-              <strong>{{ terminalPanel.title }}</strong>
-            </div>
-            <button class="ghost-button" @click="terminalPanel.visible = false">关闭</button>
-          </div>
-          <RemoteTerminal :key="terminalPanel.cwd" :title="terminalPanel.title" :initial-cwd="terminalPanel.cwd" compact />
-        </div>
       </div>
 
       <div v-if="dialog.visible" class="finder-dialog-mask">
@@ -349,7 +451,7 @@ onBeforeUnmount(() => {
           </template>
           <template v-else>
             <label class="field-label">
-              <span>新名称</span>
+              <span>{{ dialog.type === 'mkdir' ? '文件夹名称' : '新名称' }}</span>
               <input v-model="dialog.value" class="text-input" />
             </label>
           </template>
@@ -359,6 +461,25 @@ onBeforeUnmount(() => {
               {{ actionLoading ? '处理中...' : '确认' }}
             </button>
             <button class="ghost-button" :disabled="actionLoading" @click="closeDialog">取消</button>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="shortcutDialog.visible" class="finder-dialog-mask">
+        <div class="finder-dialog-card">
+          <p class="eyebrow">Shortcut</p>
+          <h3>{{ shortcutDialog.index >= 0 ? '编辑快捷访问' : '新增快捷访问' }}</h3>
+          <label class="field-label">
+            <span>名称</span>
+            <input v-model="shortcutDialog.label" class="text-input" />
+          </label>
+          <label class="field-label">
+            <span>地址</span>
+            <input v-model="shortcutDialog.path" class="text-input" placeholder="例如：~/workspace 或 /opt/honeytea" />
+          </label>
+          <div class="stack-actions">
+            <button class="primary-button" @click="saveShortcut">保存</button>
+            <button class="ghost-button" @click="closeShortcutDialog">取消</button>
           </div>
         </div>
       </div>

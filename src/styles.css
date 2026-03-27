@@ -1202,9 +1202,9 @@ a {
 }
 
 .workspace-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 720px;
   align-items: center;
-  justify-content: space-between;
   gap: 14px;
   padding: 14px 16px;
 }
@@ -1218,6 +1218,12 @@ a {
   flex-wrap: wrap;
 }
 
+.workspace-nav {
+  width: 720px;
+  justify-content: flex-end;
+  flex: 0 0 720px;
+}
+
 .workspace-nav-link {
   text-decoration: none;
   padding: 10px 14px;
@@ -1225,6 +1231,8 @@ a {
   background: rgba(255, 255, 255, 0.56);
   border: 1px solid transparent;
   transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+  min-width: 128px;
+  text-align: center;
 }
 
 .workspace-nav-link.active {
@@ -1253,6 +1261,7 @@ a {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
   gap: 16px;
+  align-items: start;
 }
 
 .file-sidebar,
@@ -1265,12 +1274,30 @@ a {
   flex-direction: column;
   justify-content: space-between;
   gap: 16px;
+  max-height: calc(100vh - 132px);
+  overflow: auto;
+  position: sticky;
+  top: 18px;
 }
 
 .file-shortcut-list {
   display: grid;
   gap: 10px;
   margin-top: 14px;
+}
+
+.shortcut-editor-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.file-shortcut-item-wrap,
+.file-shortcut-editor {
+  display: grid;
+  gap: 8px;
 }
 
 .file-shortcut-item {
@@ -1280,6 +1307,27 @@ a {
   background: rgba(255, 255, 255, 0.56);
   text-align: left;
   cursor: pointer;
+}
+
+.file-shortcut-item span,
+.file-shortcut-editor strong {
+  display: block;
+}
+
+.file-shortcut-item small,
+.file-shortcut-editor small {
+  color: var(--muted);
+  word-break: break-all;
+}
+
+.file-shortcut-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.compact-action {
+  padding: 8px 10px;
 }
 
 .file-sidebar-footer {
@@ -1379,8 +1427,29 @@ a {
     align-items: stretch;
   }
 
+  .workspace-header {
+    display: flex;
+  }
+
+  .workspace-nav {
+    width: auto;
+    flex: 1 1 auto;
+    justify-content: stretch;
+  }
+
+  .workspace-nav-link {
+    min-width: 0;
+    flex: 1 1 180px;
+  }
+
   .file-workspace {
     grid-template-columns: 1fr;
+  }
+
+  .file-sidebar {
+    position: static;
+    max-height: none;
+    overflow: visible;
   }
 }
 

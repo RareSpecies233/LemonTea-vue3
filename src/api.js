@@ -179,6 +179,13 @@ export function installHoneyPlugin(manifest, files, replace = false) {
   })
 }
 
+export function updateHoneyFirmware(filename, contentBase64) {
+  return request(clientApiPath('firmware'), {
+    method: 'POST',
+    body: JSON.stringify({ filename, content_base64: contentBase64 })
+  })
+}
+
 export function listLemonPlugins() {
   return request('/api/server/plugins')
 }

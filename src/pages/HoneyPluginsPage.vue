@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue'
-import { callHoneyPlugin, installHoneyPlugin, listHoneyPlugins, startHoneyPlugin, stopHoneyPlugin } from '../api.js'
+import { callHoneyPlugin, encodeBytesBase64, installHoneyPlugin, listHoneyPlugins, startHoneyPlugin, stopHoneyPlugin, updateHoneyFirmware } from '../api.js'
 import { buildPluginPackage } from '../plugin-package.js'
 
 const plugins = ref([])
@@ -14,6 +14,9 @@ const directoryInput = ref(null)
 const selectedPackage = ref(null)
 const replaceExisting = ref(false)
 const installing = ref(false)
+const firmwareInput = ref(null)
+const firmwareFile = ref(null)
+const firmwareUpdating = ref(false)
 
 async function refresh() {
   error.value = ''
@@ -93,6 +96,35 @@ async function installPackage() {
   }
 }
 
+function chooseFirmware() {
+  firmwareInput.value?.click()
+}
+
+function handleFirmwareSelection(event) {
+  firmwareFile.value = event.target.files?.[0] || null
+  event.target.value = ''
+}
+
+async function installFirmware() {
+  if (!firmwareFile.value) {
+    error.value = '请先选择 HoneyTea 可执行程序'
+    return
+  }
+
+  error.value = ''
+  firmwareUpdating.value = true
+  try {
+    const bytes = new Uint8Array(await firmwareFile.value.arrayBuffer())
+    const payload = await updateHoneyFirmware(firmwareFile.value.name, encodeBytesBase64(bytes))
+    result.value = JSON.stringify(payload, null, 2)
+    firmwareFile.value = null
+  } catch (err) {
+    error.value = err.message
+  } finally {
+    firmwareUpdating.value = false
+  }
+}
+
 refresh()
 </script>
 
@@ -147,6 +179,28 @@ refresh()
         <strong>识别规范</strong>
         <small>必须包含 manifest，且至少声明 name、script、port。</small>
         <small>script 必须是相对路径，且所有附带文件都必须位于插件目录内部。</small>
+      </div>
+    </div>
+
+    <div class="plugin-card">
+      <p class="eyebrow">Firmware Update</p>
+      <p class="muted">上传新的 HoneyTea 可执行程序后，客户端会自动替换当前程序并重启。</p>
+      <input ref="firmwareInput" type="file" class="hidden-file-input" @change="handleFirmwareSelection" />
+      <div class="stack-actions">
+        <button class="ghost-button" @click="chooseFirmware">选择 HoneyTea 可执行文件</button>
+      </div>
+      <div v-if="firmwareFile" class="plugin-install-summary">
+        <strong>{{ firmwareFile.name }}</strong>
+        <small>大小 {{ firmwareFile.size }} bytes</small>
+      </div>
+      <div class="stack-actions">
+        <button class="danger-button" :disabled="firmwareUpdating || !firmwareFile" @click="installFirmware">
+          {{ firmwareUpdating ? '更新中...' : '更新 HoneyTea 固件' }}
+        </button>
+      </div>
+      <div class="plugin-guideline-note">
+        <strong>说明</strong>
+        <small>更新成功后 HoneyTea 会短暂断开连接，随后使用新程序自动拉起。</small>
       </div>
     </div>
 
