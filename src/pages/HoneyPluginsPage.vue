@@ -1,6 +1,6 @@
 <script setup>
-import { ref } from 'vue'
-import { callHoneyPlugin, installHoneyPlugin, listHoneyPlugins, startHoneyPlugin, stopHoneyPlugin, updateHoneyFirmware, writeFileBytesChunked } from '../api.js'
+import { computed, onBeforeUnmount, ref } from 'vue'
+import { callHoneyPlugin, fetchHoneyFirmwareStatus, installHoneyPlugin, listHoneyPlugins, startHoneyPlugin, stopHoneyPlugin, updateHoneyFirmware, writeFileBytesChunked } from '../api.js'
 import { buildPluginPackage } from '../plugin-package.js'
 
 const plugins = ref([])
@@ -17,6 +17,17 @@ const installing = ref(false)
 const firmwareInput = ref(null)
 const firmwareFile = ref(null)
 const firmwareUpdating = ref(false)
+const firmwareState = ref({
+  active: false,
+  fileName: '',
+  uploadedBytes: 0,
+  totalBytes: 0,
+  progress: 0,
+  stage: 'idle',
+  message: '等待操作',
+  logs: ''
+})
+let firmwarePollTimer = null
 
 async function refresh() {
   error.value = ''
@@ -139,12 +150,46 @@ async function installFirmware() {
   try {
     const bytes = new Uint8Array(await firmwareFile.value.arrayBuffer())
     const stagedPath = `~/.honeytea-fw/${Date.now()}-${sanitizeFilename(firmwareFile.value.name)}`
-    await writeFileBytesChunked(stagedPath, bytes)
+    firmwareState.value = {
+      active: true,
+      fileName: firmwareFile.value.name,
+      uploadedBytes: 0,
+      totalBytes: bytes.length,
+      progress: 0,
+      stage: 'uploading',
+      message: '正在上传固件到 HoneyTea',
+      logs: ''
+    }
+    await writeFileBytesChunked(stagedPath, bytes, {
+      onProgress(written, total) {
+        firmwareState.value = {
+          ...firmwareState.value,
+          uploadedBytes: written,
+          totalBytes: total,
+          progress: Math.min(70, Math.round((written / Math.max(total, 1)) * 70)),
+          stage: 'uploading',
+          message: '正在上传固件到 HoneyTea'
+        }
+      }
+    })
+    firmwareState.value = {
+      ...firmwareState.value,
+      progress: 76,
+      stage: 'scheduled',
+      message: '固件已上传，等待 HoneyTea 应用更新并重启'
+    }
     const payload = await updateHoneyFirmware(firmwareFile.value.name, '', stagedPath)
     result.value = JSON.stringify(payload, null, 2)
     firmwareFile.value = null
+    startHoneyFirmwarePolling()
   } catch (err) {
     error.value = err.message
+    firmwareState.value = {
+      ...firmwareState.value,
+      active: false,
+      message: err.message,
+      stage: 'error'
+    }
   } finally {
     firmwareUpdating.value = false
   }
@@ -154,14 +199,127 @@ async function restartHoneytea() {
   error.value = ''
   firmwareUpdating.value = true
   try {
+    firmwareState.value = {
+      active: true,
+      fileName: 'honeytea',
+      uploadedBytes: 0,
+      totalBytes: 0,
+      progress: 72,
+      stage: 'scheduled',
+      message: '正在请求 HoneyTea 重启',
+      logs: firmwareState.value.logs
+    }
     const payload = await updateHoneyFirmware('honeytea', '', '', true)
     result.value = JSON.stringify(payload, null, 2)
+    startHoneyFirmwarePolling()
   } catch (err) {
     error.value = err.message
+    firmwareState.value = {
+      ...firmwareState.value,
+      active: false,
+      message: err.message,
+      stage: 'error'
+    }
   } finally {
     firmwareUpdating.value = false
   }
 }
+
+function stageProgress(stage, fallback = 75) {
+  switch (stage) {
+    case 'uploading':
+      return firmwareState.value.progress || 0
+    case 'scheduled':
+      return 76
+    case 'launcher_started':
+      return 84
+    case 'replacing_binary':
+      return 90
+    case 'binary_replaced':
+      return 94
+    case 'restarting':
+      return 97
+    case 'restart_launched':
+      return 100
+    case 'error':
+      return firmwareState.value.progress || fallback
+    default:
+      return fallback
+  }
+}
+
+function stageMessage(stage) {
+  switch (stage) {
+    case 'uploading':
+      return '正在上传固件到 HoneyTea'
+    case 'scheduled':
+      return '固件已上传，等待 HoneyTea 应用更新并重启'
+    case 'launcher_started':
+      return '已启动更新脚本'
+    case 'replacing_binary':
+      return '正在替换 HoneyTea 可执行程序'
+    case 'binary_replaced':
+      return '新固件已写入，准备重启'
+    case 'restarting':
+      return '正在拉起新的 HoneyTea 进程'
+    case 'restart_launched':
+      return 'HoneyTea 重启命令已发出'
+    case 'error':
+      return firmwareState.value.message || '更新失败'
+    default:
+      return '等待操作'
+  }
+}
+
+function stopHoneyFirmwarePolling() {
+  if (firmwarePollTimer) {
+    clearInterval(firmwarePollTimer)
+    firmwarePollTimer = null
+  }
+}
+
+async function pollHoneyFirmwareStatus() {
+  try {
+    const payload = await fetchHoneyFirmwareStatus()
+    const data = payload?.data || {}
+    const logs = [data.launcher_log_excerpt, data.log_excerpt].filter(Boolean).join('\n')
+    const stage = data.stage || 'scheduled'
+    firmwareState.value = {
+      ...firmwareState.value,
+      active: stage !== 'restart_launched',
+      stage,
+      progress: stageProgress(stage, firmwareState.value.progress),
+      message: stageMessage(stage),
+      logs: logs || firmwareState.value.logs
+    }
+    if (stage === 'restart_launched') {
+      stopHoneyFirmwarePolling()
+    }
+  } catch (err) {
+    firmwareState.value = {
+      ...firmwareState.value,
+      message: 'HoneyTea 正在重启，等待重新连回服务端',
+      progress: Math.max(firmwareState.value.progress, 92)
+    }
+  }
+}
+
+function startHoneyFirmwarePolling() {
+  stopHoneyFirmwarePolling()
+  pollHoneyFirmwareStatus()
+  firmwarePollTimer = window.setInterval(pollHoneyFirmwareStatus, 1500)
+}
+
+const firmwareTransferLabel = computed(() => {
+  if (!firmwareState.value.totalBytes) {
+    return '等待状态更新'
+  }
+  return `${formatBytes(firmwareState.value.uploadedBytes)} / ${formatBytes(firmwareState.value.totalBytes)}`
+})
+
+onBeforeUnmount(() => {
+  stopHoneyFirmwarePolling()
+})
 
 refresh()
 </script>
@@ -238,7 +396,16 @@ refresh()
         <button class="ghost-button" :disabled="firmwareUpdating" @click="restartHoneytea">
           {{ firmwareUpdating ? '处理中...' : '仅重启 HoneyTea' }}
         </button>
+        <button class="ghost-button" :disabled="firmwareUpdating" @click="pollHoneyFirmwareStatus">刷新状态</button>
       </div>
+      <div class="plugin-install-summary">
+        <strong>{{ firmwareState.message }}</strong>
+        <small>{{ firmwareState.progress }}% · {{ firmwareTransferLabel }}</small>
+        <div class="upload-progress-bar">
+          <div class="upload-progress-bar-inner" :style="{ width: `${firmwareState.progress}%` }"></div>
+        </div>
+      </div>
+      <div class="code-output">{{ firmwareState.logs || 'HoneyTea 固件更新日志会显示在这里。' }}</div>
       <div class="plugin-guideline-note">
         <strong>说明</strong>
         <small>更新成功后 HoneyTea 会短暂断开连接，随后使用新程序自动拉起。</small>

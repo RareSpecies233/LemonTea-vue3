@@ -29,12 +29,13 @@ let term
 let fitAddon
 let socket
 let resizeListener
-let hostResizeObserver
 let ptySessionId = ''
 const decoder = new TextDecoder()
 const encoder = new TextEncoder()
 let fitRafId = 0
 let fitScheduled = false
+let outputRafId = 0
+let pendingOutput = ''
 
 const statusPill = computed(() => isConnected.value ? '已连接' : terminalStatus.value)
 
@@ -70,9 +71,28 @@ function scheduleFitTerminal() {
   })
 }
 
+function flushOutput() {
+  outputRafId = 0
+  if (!pendingOutput || !term) {
+    pendingOutput = ''
+    return
+  }
+  const nextChunk = pendingOutput
+  pendingOutput = ''
+  term.write(nextChunk)
+}
+
+function scheduleOutputFlush() {
+  if (outputRafId) {
+    return
+  }
+  outputRafId = window.requestAnimationFrame(flushOutput)
+}
+
 function writeBytes(base64Content) {
   const chunk = decodeBase64ToBytes(base64Content)
-  term.write(decoder.decode(chunk, { stream: true }))
+  pendingOutput += decoder.decode(chunk, { stream: true })
+  scheduleOutputFlush()
 }
 
 function attachSocket() {
@@ -84,7 +104,7 @@ function attachSocket() {
     sendMessage({
       action: 'open',
       client_id: appState.clientId,
-      cwd: props.initialCwd || '~',
+      cwd: currentCwd.value || '~',
       rows: term.rows,
       cols: term.cols
     })
@@ -152,10 +172,11 @@ function mountTerminal() {
   term = new Terminal({
     convertEol: true,
     cursorBlink: false,
-    rendererType: 'dom',
     smoothScrollDuration: 0,
     fastScrollModifier: 'alt',
     fastScrollSensitivity: 2,
+    scrollback: 1200,
+    customGlyphs: false,
     fontFamily: 'IBM Plex Mono, monospace',
     fontSize: props.compact ? 12 : 13,
     lineHeight: 1.25,
@@ -203,10 +224,6 @@ function mountTerminal() {
 
   resizeListener = () => scheduleFitTerminal()
   window.addEventListener('resize', resizeListener)
-  if (typeof ResizeObserver !== 'undefined' && terminalHost.value) {
-    hostResizeObserver = new ResizeObserver(() => scheduleFitTerminal())
-    hostResizeObserver.observe(terminalHost.value)
-  }
   attachSocket()
 }
 
@@ -222,12 +239,12 @@ onBeforeUnmount(() => {
     fitRafId = 0
     fitScheduled = false
   }
+  if (outputRafId) {
+    window.cancelAnimationFrame(outputRafId)
+    outputRafId = 0
+  }
   if (resizeListener) {
     window.removeEventListener('resize', resizeListener)
-  }
-  if (hostResizeObserver) {
-    hostResizeObserver.disconnect()
-    hostResizeObserver = null
   }
   closeTerminal()
   term?.dispose()

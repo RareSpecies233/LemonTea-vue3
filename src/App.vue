@@ -19,7 +19,7 @@ const navItems = [
 
 const health = computed(() => appState.lastHealth)
 const isConnectPage = computed(() => route.name === 'connect')
-const showTopHeader = computed(() => route.name === 'dashboard')
+const showTopHeader = computed(() => !isConnectPage.value)
 
 function isCurrentClientAlive(payload) {
   const clients = Array.isArray(payload?.clients) ? payload.clients : []

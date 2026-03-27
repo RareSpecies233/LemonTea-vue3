@@ -1,6 +1,6 @@
 <script setup>
-import { ref } from 'vue'
-import { callLemonPlugin, installLemonPlugin, listLemonPlugins, startLemonPlugin, stopLemonPlugin } from '../api.js'
+import { computed, onBeforeUnmount, ref } from 'vue'
+import { callLemonPlugin, fetchLemonRuntimeStatus, installLemonPlugin, listLemonPlugins, startLemonPlugin, stopLemonPlugin, updateLemonRuntime, writeServerRuntimeBytesChunked } from '../api.js'
 import { buildPluginPackage } from '../plugin-package.js'
 
 const plugins = ref([])
@@ -16,6 +16,20 @@ const directoryInput = ref(null)
 const selectedPackage = ref(null)
 const replaceExisting = ref(false)
 const installing = ref(false)
+const runtimeInput = ref(null)
+const runtimeFile = ref(null)
+const runtimeUpdating = ref(false)
+const runtimeState = ref({
+  active: false,
+  fileName: '',
+  uploadedBytes: 0,
+  totalBytes: 0,
+  progress: 0,
+  stage: 'idle',
+  message: '等待操作',
+  logs: ''
+})
+let runtimePollTimer = null
 
 async function refresh() {
   error.value = ''
@@ -95,6 +109,219 @@ async function installPackage() {
   }
 }
 
+function chooseRuntimeFile() {
+  runtimeInput.value?.click()
+}
+
+function handleRuntimeSelection(event) {
+  runtimeFile.value = event.target.files?.[0] || null
+  event.target.value = ''
+}
+
+function sanitizeFilename(name) {
+  return String(name || 'lemontea')
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .slice(0, 120)
+}
+
+function formatBytes(value) {
+  if (!Number.isFinite(value) || value < 0) {
+    return '—'
+  }
+  if (value < 1024) {
+    return `${value} B`
+  }
+  const units = ['KB', 'MB', 'GB', 'TB']
+  let size = value
+  let unitIndex = -1
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024
+    unitIndex += 1
+  }
+  return `${size >= 100 ? size.toFixed(0) : size.toFixed(1)} ${units[unitIndex]}`
+}
+
+function runtimeProgressForStage(stage, fallback = 75) {
+  switch (stage) {
+    case 'uploading':
+      return runtimeState.value.progress || 0
+    case 'scheduled':
+      return 76
+    case 'launcher_started':
+      return 84
+    case 'replacing_binary':
+      return 90
+    case 'binary_replaced':
+      return 94
+    case 'restarting':
+      return 97
+    case 'restart_launched':
+      return 100
+    case 'error':
+      return runtimeState.value.progress || fallback
+    default:
+      return fallback
+  }
+}
+
+function runtimeMessageForStage(stage) {
+  switch (stage) {
+    case 'uploading':
+      return '正在上传 LemonTea 新程序'
+    case 'scheduled':
+      return 'LemonTea 更新已提交，等待重启'
+    case 'launcher_started':
+      return '已启动 LemonTea 更新脚本'
+    case 'replacing_binary':
+      return '正在替换 LemonTea 可执行程序'
+    case 'binary_replaced':
+      return '新版本已写入，准备重启'
+    case 'restarting':
+      return '正在拉起新的 LemonTea 进程'
+    case 'restart_launched':
+      return 'LemonTea 重启命令已发出'
+    case 'error':
+      return runtimeState.value.message || '更新失败'
+    default:
+      return '等待操作'
+  }
+}
+
+function stopRuntimePolling() {
+  if (runtimePollTimer) {
+    clearInterval(runtimePollTimer)
+    runtimePollTimer = null
+  }
+}
+
+async function pollRuntimeStatus() {
+  try {
+    const data = await fetchLemonRuntimeStatus()
+    const stage = data?.stage || 'scheduled'
+    const logs = [data?.launcher_log_excerpt, data?.log_excerpt].filter(Boolean).join('\n')
+    runtimeState.value = {
+      ...runtimeState.value,
+      active: stage !== 'restart_launched',
+      stage,
+      progress: runtimeProgressForStage(stage, runtimeState.value.progress),
+      message: runtimeMessageForStage(stage),
+      logs: logs || runtimeState.value.logs
+    }
+    if (stage === 'restart_launched') {
+      stopRuntimePolling()
+    }
+  } catch (err) {
+    runtimeState.value = {
+      ...runtimeState.value,
+      message: 'LemonTea 正在重启，等待服务恢复',
+      progress: Math.max(runtimeState.value.progress, 92)
+    }
+  }
+}
+
+function startRuntimePolling() {
+  stopRuntimePolling()
+  pollRuntimeStatus()
+  runtimePollTimer = window.setInterval(pollRuntimeStatus, 1500)
+}
+
+async function installRuntime() {
+  if (!runtimeFile.value) {
+    error.value = '请先选择 LemonTea 可执行程序'
+    return
+  }
+
+  error.value = ''
+  runtimeUpdating.value = true
+  try {
+    const bytes = new Uint8Array(await runtimeFile.value.arrayBuffer())
+    const stageName = `${Date.now()}-${sanitizeFilename(runtimeFile.value.name)}`
+    runtimeState.value = {
+      active: true,
+      fileName: runtimeFile.value.name,
+      uploadedBytes: 0,
+      totalBytes: bytes.length,
+      progress: 0,
+      stage: 'uploading',
+      message: '正在上传 LemonTea 新程序',
+      logs: ''
+    }
+    const stagedPath = await writeServerRuntimeBytesChunked(stageName, bytes, {
+      onProgress(written, total) {
+        runtimeState.value = {
+          ...runtimeState.value,
+          uploadedBytes: written,
+          totalBytes: total,
+          progress: Math.min(70, Math.round((written / Math.max(total, 1)) * 70)),
+          stage: 'uploading',
+          message: '正在上传 LemonTea 新程序'
+        }
+      }
+    })
+    runtimeState.value = {
+      ...runtimeState.value,
+      progress: 76,
+      stage: 'scheduled',
+      message: 'LemonTea 更新已提交，等待重启'
+    }
+    const payload = await updateLemonRuntime(runtimeFile.value.name, stagedPath)
+    result.value = JSON.stringify(payload, null, 2)
+    runtimeFile.value = null
+    startRuntimePolling()
+  } catch (err) {
+    error.value = err.message
+    runtimeState.value = {
+      ...runtimeState.value,
+      active: false,
+      stage: 'error',
+      message: err.message
+    }
+  } finally {
+    runtimeUpdating.value = false
+  }
+}
+
+async function restartLemonTea() {
+  error.value = ''
+  runtimeUpdating.value = true
+  try {
+    runtimeState.value = {
+      active: true,
+      fileName: 'lemontea',
+      uploadedBytes: 0,
+      totalBytes: 0,
+      progress: 72,
+      stage: 'scheduled',
+      message: '正在请求 LemonTea 重启',
+      logs: runtimeState.value.logs
+    }
+    const payload = await updateLemonRuntime('lemontea', '', true)
+    result.value = JSON.stringify(payload, null, 2)
+    startRuntimePolling()
+  } catch (err) {
+    error.value = err.message
+    runtimeState.value = {
+      ...runtimeState.value,
+      active: false,
+      stage: 'error',
+      message: err.message
+    }
+  } finally {
+    runtimeUpdating.value = false
+  }
+}
+
+const runtimeTransferLabel = computed(() => {
+  if (!runtimeState.value.totalBytes) {
+    return '等待状态更新'
+  }
+  return `${formatBytes(runtimeState.value.uploadedBytes)} / ${formatBytes(runtimeState.value.totalBytes)}`
+})
+
+onBeforeUnmount(() => {
+  stopRuntimePolling()
+})
+
 refresh()
 </script>
 
@@ -150,6 +377,36 @@ refresh()
         <small>manifest 必须声明 name、script、port，可选 version、capabilities、protocol_version。</small>
         <small>所有附带文件必须通过同一次上传提交，且路径不能越出插件目录。</small>
       </div>
+    </div>
+
+    <div class="plugin-card">
+      <p class="eyebrow">LemonTea Runtime</p>
+      <p class="muted">上传新的 LemonTea 可执行程序后，服务端会自动替换当前程序并重启。</p>
+      <input ref="runtimeInput" type="file" class="hidden-file-input" @change="handleRuntimeSelection" />
+      <div class="stack-actions">
+        <button class="ghost-button" @click="chooseRuntimeFile">选择 LemonTea 可执行文件</button>
+      </div>
+      <div v-if="runtimeFile" class="plugin-install-summary">
+        <strong>{{ runtimeFile.name }}</strong>
+        <small>大小 {{ formatBytes(runtimeFile.size) }}</small>
+      </div>
+      <div class="stack-actions">
+        <button class="danger-button" :disabled="runtimeUpdating || !runtimeFile" @click="installRuntime">
+          {{ runtimeUpdating ? '更新中...' : '更新 LemonTea' }}
+        </button>
+        <button class="ghost-button" :disabled="runtimeUpdating" @click="restartLemonTea">
+          {{ runtimeUpdating ? '处理中...' : '仅重启 LemonTea' }}
+        </button>
+        <button class="ghost-button" :disabled="runtimeUpdating" @click="pollRuntimeStatus">刷新状态</button>
+      </div>
+      <div class="plugin-install-summary">
+        <strong>{{ runtimeState.message }}</strong>
+        <small>{{ runtimeState.progress }}% · {{ runtimeTransferLabel }}</small>
+        <div class="upload-progress-bar">
+          <div class="upload-progress-bar-inner" :style="{ width: `${runtimeState.progress}%` }"></div>
+        </div>
+      </div>
+      <div class="code-output">{{ runtimeState.logs || 'LemonTea 更新日志会显示在这里。' }}</div>
     </div>
 
     <div class="plugin-card">

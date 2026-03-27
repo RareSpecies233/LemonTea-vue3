@@ -100,6 +100,10 @@ export function buildWebSocketUrl(path) {
   return url.toString()
 }
 
+function serverApiPath(suffix) {
+  return `/api/server/${suffix}`
+}
+
 export function listClients() {
   return request('/api/clients')
 }
@@ -135,11 +139,12 @@ export function readFileChunk(path, offset = 0, length = 4096) {
 }
 
 export async function readFileBytesChunked(path, expectedSize, options = {}) {
-  const chunkSize = options.chunkSize || 4096
+  const chunkSize = options.chunkSize || 32768
   const chunks = []
   let total = 0
   let offset = 0
   const shouldTrackSize = Number.isFinite(expectedSize) && expectedSize >= 0
+  const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null
 
   while (!shouldTrackSize || offset < expectedSize) {
     const payload = await readFileChunk(path, offset, chunkSize)
@@ -153,6 +158,10 @@ export async function readFileBytesChunked(path, expectedSize, options = {}) {
     chunks.push(bytes)
     total += bytes.length
     offset += bytes.length
+
+    if (onProgress) {
+      onProgress(offset, shouldTrackSize ? expectedSize : total)
+    }
 
     if (data.eof) {
       break
@@ -180,8 +189,8 @@ export function writeFilePart(path, contentBase64, append = false) {
 }
 
 export async function writeFileBytesChunked(path, bytes, options = {}) {
-  let chunkSize = options.chunkSize || 768
-  const minimumChunkSize = 128
+  let chunkSize = options.chunkSize || 16384
+  const minimumChunkSize = 1024
   const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null
   let offset = 0
   let append = false
@@ -283,6 +292,10 @@ export function updateHoneyFirmware(filename, contentBase64 = '', stagedPath = '
   })
 }
 
+export function fetchHoneyFirmwareStatus() {
+  return request(clientApiPath('firmware/status'))
+}
+
 export function listLemonPlugins() {
   return request('/api/server/plugins')
 }
@@ -313,6 +326,73 @@ export function installLemonPlugin(manifest, files, replace = false) {
     method: 'POST',
     body: JSON.stringify({ manifest, files, replace })
   })
+}
+
+export function writeServerRuntimePart(path, contentBase64, append = false) {
+  return request(serverApiPath('runtime/file/write'), {
+    method: 'POST',
+    body: JSON.stringify({ path, content_base64: contentBase64, append })
+  })
+}
+
+export async function writeServerRuntimeBytesChunked(path, bytes, options = {}) {
+  let chunkSize = options.chunkSize || 16384
+  const minimumChunkSize = 1024
+  const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null
+  let offset = 0
+  let append = false
+  let stagedPath = ''
+  let finalSize = Number.NaN
+
+  while (offset < bytes.length) {
+    const nextOffset = Math.min(offset + chunkSize, bytes.length)
+    const chunk = bytes.subarray(offset, nextOffset)
+    try {
+      const payload = await writeServerRuntimePart(path, encodeBytesBase64(chunk), append)
+      append = true
+      offset = nextOffset
+      stagedPath = payload?.staged_path || payload?.data?.staged_path || stagedPath
+      const remoteSize = Number(payload?.size ?? payload?.data?.size)
+      if (Number.isFinite(remoteSize) && remoteSize >= 0) {
+        finalSize = remoteSize
+      }
+      if (onProgress) {
+        onProgress(offset, bytes.length)
+      }
+    } catch (error) {
+      const message = String(error?.message || '')
+      if (/message size exceeds limit|payload too large|too large/i.test(message) && chunkSize > minimumChunkSize) {
+        chunkSize = Math.max(minimumChunkSize, Math.floor(chunkSize / 2))
+        continue
+      }
+      throw error
+    }
+  }
+
+  if (!bytes.length) {
+    const payload = await writeServerRuntimePart(path, '', false)
+    stagedPath = payload?.staged_path || payload?.data?.staged_path || stagedPath
+    if (onProgress) {
+      onProgress(0, 0)
+    }
+  }
+
+  if (bytes.length && Number.isFinite(finalSize) && finalSize !== bytes.length) {
+    throw new Error(`文件上传不完整：预期 ${bytes.length} 字节，服务端实际 ${finalSize} 字节`)
+  }
+
+  return stagedPath
+}
+
+export function updateLemonRuntime(filename, stagedPath = '', restartOnly = false) {
+  return request(serverApiPath('runtime'), {
+    method: 'POST',
+    body: JSON.stringify({ filename, staged_path: stagedPath, restart_only: restartOnly })
+  })
+}
+
+export function fetchLemonRuntimeStatus() {
+  return request(serverApiPath('runtime/status'))
 }
 
 export function encodeBase64(content) {

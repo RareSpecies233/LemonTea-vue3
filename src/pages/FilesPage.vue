@@ -20,6 +20,7 @@ const shortcutDialog = ref({ visible: false, index: -1, label: '', path: '' })
 const customShortcuts = ref([])
 const shortcutMenu = ref({ visible: false, x: 0, y: 0, index: -1 })
 const uploadState = ref({ visible: false, fileName: '', fileIndex: 0, fileCount: 0, uploadedBytes: 0, totalBytes: 0 })
+const downloadState = ref({ visible: false, fileName: '', downloadedBytes: 0, totalBytes: 0 })
 const sortState = ref({ key: 'name', direction: 'asc' })
 
 const CUSTOM_SHORTCUTS_KEY = 'lemontea.files.shortcuts'
@@ -217,8 +218,19 @@ async function downloadEntry(entry = selectedItem.value) {
   }
   actionLoading.value = true
   error.value = ''
+  downloadState.value = {
+    visible: true,
+    fileName: entry.name,
+    downloadedBytes: 0,
+    totalBytes: Number(entry.size) || 0
+  }
   try {
-    const bytes = await readFileBytesChunked(entry.path, entry.size)
+    const bytes = await readFileBytesChunked(entry.path, entry.size, {
+      onProgress(downloaded, total) {
+        downloadState.value.downloadedBytes = downloaded
+        downloadState.value.totalBytes = total || Number(entry.size) || downloaded
+      }
+    })
     const blob = new Blob([bytes])
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -230,6 +242,7 @@ async function downloadEntry(entry = selectedItem.value) {
     error.value = err.message
   } finally {
     actionLoading.value = false
+    downloadState.value.visible = false
     closeContextMenu()
   }
 }
@@ -389,6 +402,18 @@ const uploadProgressLabel = computed(() => {
   const uploaded = formatFileSize(uploadState.value.uploadedBytes)
   const total = formatFileSize(uploadState.value.totalBytes)
   return `${uploaded} / ${total}`
+})
+const downloadPercent = computed(() => {
+  const total = downloadState.value.totalBytes
+  if (!total) {
+    return 0
+  }
+  return Math.max(0, Math.min(100, Math.round((downloadState.value.downloadedBytes / total) * 100)))
+})
+const downloadProgressLabel = computed(() => {
+  const downloaded = formatFileSize(downloadState.value.downloadedBytes)
+  const total = formatFileSize(downloadState.value.totalBytes)
+  return `${downloaded} / ${total}`
 })
 
 onMounted(async () => {
@@ -565,6 +590,18 @@ onBeforeUnmount(() => {
             <div class="upload-progress-bar-inner" :style="{ width: `${uploadPercent}%` }"></div>
           </div>
           <p class="muted">{{ uploadPercent }}% · {{ uploadProgressLabel }}</p>
+        </div>
+      </div>
+
+      <div v-if="downloadState.visible" class="finder-dialog-mask upload-progress-mask">
+        <div class="finder-dialog-card upload-progress-card">
+          <p class="eyebrow">下载中</p>
+          <h3>正在下载文件，请稍候</h3>
+          <p class="muted">{{ downloadState.fileName }}</p>
+          <div class="upload-progress-bar">
+            <div class="upload-progress-bar-inner" :style="{ width: `${downloadPercent}%` }"></div>
+          </div>
+          <p class="muted">{{ downloadPercent }}% · {{ downloadProgressLabel }}</p>
         </div>
       </div>
     </div>
