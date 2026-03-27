@@ -1274,7 +1274,15 @@ a {
   font-size: 0.72rem;
 }
 
+.workspace-header .status-pill.status-pill-offline {
+  background: rgba(187, 60, 42, 0.16);
+  color: #b23b2a;
+}
+
 .workspace-nav-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   text-decoration: none;
   padding: 0 8px;
   border-radius: 999px;
@@ -1286,6 +1294,7 @@ a {
 }
 
 .workspace-nav-action {
+  appearance: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1311,11 +1320,12 @@ a {
   font-size: 0.74rem;
   line-height: 1;
   white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .workspace-nav-link.disabled,
 .workspace-nav-action:disabled {
-  opacity: 0.45;
+  opacity: 0.72;
   pointer-events: none;
 }
 
@@ -1470,12 +1480,25 @@ a {
 }
 
 .file-explorer-head {
-  padding: 12px 14px;
   color: var(--muted);
   background: rgba(240, 228, 214, 0.72);
   position: sticky;
   top: 0;
   z-index: 2;
+}
+
+.file-explorer-head > *,
+.file-row > * {
+  padding: 12px 14px;
+}
+
+.file-sort-button {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
 }
 
 .file-row {
@@ -1486,12 +1509,12 @@ a {
   cursor: pointer;
 }
 
-.file-row > span {
-  padding: 12px 14px;
-}
-
 .file-row.active {
   background: rgba(244, 217, 199, 0.32);
+}
+
+.file-col-size {
+  text-align: right;
 }
 
 .file-row-name {

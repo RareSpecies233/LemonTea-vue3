@@ -180,19 +180,34 @@ export function writeFilePart(path, contentBase64, append = false) {
 }
 
 export async function writeFileBytesChunked(path, bytes, options = {}) {
-  const chunkSize = options.chunkSize || 2048
+  let chunkSize = options.chunkSize || 768
+  const minimumChunkSize = 128
   const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null
   let offset = 0
   let append = false
+  let finalSize = Number.NaN
 
   while (offset < bytes.length) {
     const nextOffset = Math.min(offset + chunkSize, bytes.length)
     const chunk = bytes.subarray(offset, nextOffset)
-    await writeFilePart(path, encodeBytesBase64(chunk), append)
-    append = true
-    offset = nextOffset
-    if (onProgress) {
-      onProgress(offset, bytes.length)
+    try {
+      const payload = await writeFilePart(path, encodeBytesBase64(chunk), append)
+      append = true
+      offset = nextOffset
+      const remoteSize = Number(payload?.data?.size)
+      if (Number.isFinite(remoteSize) && remoteSize >= 0) {
+        finalSize = remoteSize
+      }
+      if (onProgress) {
+        onProgress(offset, bytes.length)
+      }
+    } catch (error) {
+      const message = String(error?.message || '')
+      if (/message size exceeds limit|payload too large|too large/i.test(message) && chunkSize > minimumChunkSize) {
+        chunkSize = Math.max(minimumChunkSize, Math.floor(chunkSize / 2))
+        continue
+      }
+      throw error
     }
   }
 
@@ -201,6 +216,10 @@ export async function writeFileBytesChunked(path, bytes, options = {}) {
     if (onProgress) {
       onProgress(0, 0)
     }
+  }
+
+  if (bytes.length && Number.isFinite(finalSize) && finalSize !== bytes.length) {
+    throw new Error(`文件上传不完整：预期 ${bytes.length} 字节，远端实际 ${finalSize} 字节`)
   }
 }
 

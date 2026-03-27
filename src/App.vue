@@ -101,7 +101,7 @@ onBeforeUnmount(stopHealthTimer)
   <div class="workspace-shell">
     <header class="workspace-header panel-card">
       <div class="workspace-status">
-        <span class="status-pill">{{ appState.connected ? (health?.transport_mode || appState.transportMode || 'unknown') : 'offline' }}</span>
+        <span class="status-pill" :class="{ 'status-pill-offline': !appState.connected }">{{ appState.connected ? (health?.transport_mode || appState.transportMode || 'unknown') : 'offline' }}</span>
         <span class="header-chip" :title="appState.clientId || '未连接'">{{ appState.clientId || '未连接' }}</span>
         <span class="header-chip" :title="appState.baseUrl">{{ appState.baseUrl }}</span>
       </div>

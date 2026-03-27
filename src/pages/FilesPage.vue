@@ -20,6 +20,7 @@ const shortcutDialog = ref({ visible: false, index: -1, label: '', path: '' })
 const customShortcuts = ref([])
 const shortcutMenu = ref({ visible: false, x: 0, y: 0, index: -1 })
 const uploadState = ref({ visible: false, fileName: '', fileIndex: 0, fileCount: 0, uploadedBytes: 0, totalBytes: 0 })
+const sortState = ref({ key: 'name', direction: 'asc' })
 
 const CUSTOM_SHORTCUTS_KEY = 'lemontea.files.shortcuts'
 
@@ -30,6 +31,21 @@ function sortEntries(entries) {
     }
     return left.name.localeCompare(right.name, 'zh-CN', { numeric: true, sensitivity: 'base' })
   })
+}
+
+function toggleSort(key) {
+  if (sortState.value.key === key) {
+    sortState.value.direction = sortState.value.direction === 'asc' ? 'desc' : 'asc'
+    return
+  }
+  sortState.value = { key, direction: 'asc' }
+}
+
+function sortIndicator(key) {
+  if (sortState.value.key !== key) {
+    return '↕'
+  }
+  return sortState.value.direction === 'asc' ? '↑' : '↓'
 }
 
 function normalizePath(path) {
@@ -339,7 +355,28 @@ const canDownload = computed(() => selectedItem.value && !selectedItem.value.is_
 const canRename = computed(() => Boolean(selectedItem.value))
 const canDelete = computed(() => Boolean(selectedItem.value))
 const itemCountLabel = computed(() => `${items.value.length} 个项目`)
-const explorerRows = computed(() => items.value)
+const explorerRows = computed(() => {
+  const rows = [...items.value]
+  const direction = sortState.value.direction === 'asc' ? 1 : -1
+  rows.sort((left, right) => {
+    if (left.is_directory !== right.is_directory) {
+      return left.is_directory ? -1 : 1
+    }
+
+    if (sortState.value.key === 'type') {
+      const leftType = left.is_directory ? '目录' : '文件'
+      const rightType = right.is_directory ? '目录' : '文件'
+      const diff = leftType.localeCompare(rightType, 'zh-CN', { sensitivity: 'base' })
+      if (diff !== 0) {
+        return diff * direction
+      }
+    }
+
+    const diff = left.name.localeCompare(right.name, 'zh-CN', { numeric: true, sensitivity: 'base' })
+    return diff * direction
+  })
+  return rows
+})
 const selectedPath = computed(() => selectedItem.value?.path || '未选择')
 const uploadPercent = computed(() => {
   const total = uploadState.value.totalBytes
@@ -421,9 +458,9 @@ onBeforeUnmount(() => {
 
       <div class="file-explorer">
         <div class="file-explorer-head">
-          <span>名称</span>
-          <span>类型</span>
-          <span>大小</span>
+          <button type="button" class="file-sort-button file-col-name" @click="toggleSort('name')">名称 {{ sortIndicator('name') }}</button>
+          <button type="button" class="file-sort-button file-col-type" @click="toggleSort('type')">类型 {{ sortIndicator('type') }}</button>
+          <span class="file-col-size">大小</span>
         </div>
         <button
           v-for="entry in explorerRows"
@@ -434,12 +471,12 @@ onBeforeUnmount(() => {
           @dblclick="activateEntry(entry)"
           @contextmenu="openContextMenu($event, entry)"
         >
-          <span class="file-row-name">
+          <span class="file-row-name file-col-name">
             <span>{{ entry.is_directory ? '📁' : '📄' }}</span>
             <span>{{ entry.name }}</span>
           </span>
-          <span>{{ entry.is_directory ? '目录' : '文件' }}</span>
-          <span>{{ entry.is_directory ? '—' : formatFileSize(entry.size) }}</span>
+          <span class="file-col-type">{{ entry.is_directory ? '目录' : '文件' }}</span>
+          <span class="file-col-size">{{ entry.is_directory ? '—' : formatFileSize(entry.size) }}</span>
         </button>
 
         <div v-if="!explorerRows.length && !loading" class="finder-empty-state finder-empty-state-inline">
