@@ -57,7 +57,10 @@ async function request(path, options = {}) {
     }
   }
   if (!response.ok) {
-    throw new Error(payload.error || payload.message || `HTTP ${response.status}`)
+    const error = new Error(payload.error || payload.message || `HTTP ${response.status}`)
+    error.status = response.status
+    error.payload = payload
+    throw error
   }
   return payload
 }

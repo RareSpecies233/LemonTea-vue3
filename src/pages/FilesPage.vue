@@ -19,6 +19,7 @@ const viewMode = ref('icons')
 const currentPath = ref('')
 const rootPath = ref('/')
 const items = ref([])
+const directoryWarnings = ref([])
 const selectedItem = ref(null)
 const recentPaths = ref([])
 const expandedPaths = ref(new Set())
@@ -96,6 +97,7 @@ async function browse(path = currentPath.value || '~') {
     const data = payload?.data || {}
     rootPath.value = normalizePath(data.root || '/')
     currentPath.value = normalizePath(data.path || path || '/')
+    directoryWarnings.value = Array.isArray(data.warnings) ? data.warnings : []
     locationInput.value = currentPath.value
     items.value = sortEntries(data.entries || [])
     treeCache[currentPath.value] = items.value
@@ -104,7 +106,8 @@ async function browse(path = currentPath.value || '~') {
       selectedItem.value = items.value.find((entry) => entry.path === selectedItem.value.path) || null
     }
   } catch (err) {
-    error.value = err.message
+    directoryWarnings.value = []
+    error.value = err.status === 504 ? '客户端连接超时，当前无法完成文件请求，请检查 HoneyTea 与 LemonTea 的连接状态。' : err.message
   } finally {
     loading.value = false
   }
@@ -325,6 +328,7 @@ const columns = computed(() => columnPaths.value.map((path) => ({
 const canDownload = computed(() => selectedItem.value && !selectedItem.value.is_directory)
 const canRename = computed(() => Boolean(selectedItem.value))
 const canDelete = computed(() => Boolean(selectedItem.value))
+const itemCountLabel = computed(() => `${items.value.length} 个项目`)
 const selectedSummary = computed(() => {
   if (!selectedItem.value) {
     return null
@@ -426,7 +430,22 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <p v-if="error" class="muted">{{ error }}</p>
+      <div class="finder-status-strip">
+        <span class="header-chip">当前目录 {{ currentPath }}</span>
+        <span class="header-chip">启动目录 {{ rootPath }}</span>
+        <span class="header-chip">{{ itemCountLabel }}</span>
+        <span class="header-chip">视图 {{ viewMode }}</span>
+      </div>
+
+      <div v-if="error" class="finder-alert finder-alert-error">
+        <strong>文件请求失败</strong>
+        <p class="muted">{{ error }}</p>
+      </div>
+
+      <div v-if="directoryWarnings.length" class="finder-alert finder-alert-warning">
+        <strong>目录部分条目不可读</strong>
+        <p class="muted">已跳过 {{ directoryWarnings.length }} 个异常条目，当前目录其余内容仍可继续浏览。</p>
+      </div>
 
       <div class="finder-content finder-content-wide">
         <div v-if="viewMode === 'icons'" class="finder-icons">
@@ -443,6 +462,10 @@ onBeforeUnmount(() => {
             <strong>{{ entry.name }}</strong>
             <small>{{ entry.is_directory ? '目录' : `${entry.size} bytes` }}</small>
           </button>
+          <div v-if="!items.length && !loading" class="finder-empty-state">
+            <strong>当前目录为空</strong>
+            <p class="muted">可以上传文件、新建文件夹，或在地址栏中输入其他路径继续浏览。</p>
+          </div>
         </div>
 
         <div v-else-if="viewMode === 'list'" class="finder-list">
@@ -474,6 +497,10 @@ onBeforeUnmount(() => {
             <span>{{ entry.is_directory ? '目录' : '文件' }}</span>
             <span>{{ entry.is_directory ? '—' : `${entry.size} bytes` }}</span>
           </button>
+          <div v-if="!rowItems.length && !loading" class="finder-empty-state finder-empty-state-inline">
+            <strong>当前目录为空</strong>
+            <p class="muted">列表视图下没有可显示项目。</p>
+          </div>
         </div>
 
         <div v-else class="finder-columns">
@@ -492,6 +519,10 @@ onBeforeUnmount(() => {
               <span>{{ entry.name }}</span>
               <span v-if="entry.is_directory">›</span>
             </button>
+          </div>
+          <div v-if="!columns.at(-1)?.entries?.length && !loading" class="finder-empty-state finder-empty-state-inline">
+            <strong>当前目录为空</strong>
+            <p class="muted">分栏视图下没有可显示项目。</p>
           </div>
         </div>
       </div>

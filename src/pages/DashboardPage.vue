@@ -22,14 +22,35 @@ const cards = [
 
 <template>
   <section class="dashboard-stack">
-    <div class="panel-card home-summary-card">
-      <p class="eyebrow">Home</p>
-      <h3>当前会话已连接到 {{ appState.clientId || '未选择客户端' }}</h3>
-      <p class="muted">下方仅保留四个核心入口与 Clients 列表，便于把主要操作集中在主页完成。</p>
+    <div class="panel-card dashboard-hero-card">
+      <div>
+        <p class="eyebrow">Home</p>
+        <h3>当前会话已连接到 {{ appState.clientId || '未选择客户端' }}</h3>
+        <p class="muted">主页只保留四个核心控制入口和 Clients 列表，让主要操作集中、清爽、可快速切换。</p>
+      </div>
+      <div class="dashboard-hero-meta">
+        <span class="status-pill">{{ appState.transportMode }}</span>
+        <span class="header-chip">Clients {{ clients.length }}</span>
+      </div>
+    </div>
+
+    <div class="dashboard-mini-stats">
+      <div class="panel-card dashboard-stat-card">
+        <p class="eyebrow">Client</p>
+        <strong>{{ appState.clientId || '未选择' }}</strong>
+      </div>
+      <div class="panel-card dashboard-stat-card">
+        <p class="eyebrow">Transport</p>
+        <strong>{{ appState.transportMode }}</strong>
+      </div>
+      <div class="panel-card dashboard-stat-card">
+        <p class="eyebrow">Visible Modules</p>
+        <strong>4</strong>
+      </div>
     </div>
 
     <div class="home-grid">
-      <RouterLink v-for="card in cards" :key="card.to" :to="card.to" class="home-button-card">
+      <RouterLink v-for="card in cards" :key="card.to" :to="card.to" class="home-button-card dashboard-action-card">
         <div class="home-button-glyph">{{ card.glyph }}</div>
         <div>
           <strong>{{ card.title }}</strong>

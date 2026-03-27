@@ -90,6 +90,13 @@ a {
   padding: 24px;
 }
 
+.connect-hero-card {
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top right, rgba(47, 124, 91, 0.18), transparent 28%),
+    linear-gradient(180deg, rgba(255, 251, 244, 0.96), rgba(248, 240, 230, 0.9));
+}
+
 .connect-card-copy {
   min-height: 100%;
 }
@@ -99,6 +106,113 @@ a {
   display: flex;
   flex-direction: column;
   gap: 18px;
+}
+
+.connect-hero-head,
+.connect-wall-header,
+.dashboard-hero-card,
+.dashboard-mini-stats,
+.finder-status-strip,
+.connect-selected-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.connect-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(29, 25, 22, 0.08);
+  color: var(--ink);
+  border: 1px solid rgba(29, 25, 22, 0.08);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.8rem;
+}
+
+.connect-lead {
+  max-width: 62ch;
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.connect-feature-grid,
+.connect-client-grid,
+.dashboard-mini-stats {
+  display: grid;
+  gap: 14px;
+}
+
+.connect-feature-grid,
+.dashboard-mini-stats {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.connect-feature {
+  padding: 16px 18px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.connect-client-wall {
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.connect-client-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-top: 14px;
+}
+
+.connect-client-chip,
+.connect-selected-card,
+.dashboard-stat-card,
+.finder-alert,
+.finder-empty-state {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.connect-client-chip {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+}
+
+.connect-client-chip.active {
+  border-color: rgba(184, 94, 60, 0.35);
+  background: rgba(244, 217, 199, 0.55);
+}
+
+.connect-client-chip span,
+.connect-client-chip small,
+.connect-client-empty {
+  color: var(--muted);
+}
+
+.connect-client-empty {
+  padding: 20px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.connect-form-card {
+  gap: 12px;
+  padding: 24px;
+}
+
+.connect-selected-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+}
+
+.connect-selected-meta span {
+  color: var(--muted);
 }
 
 .connect-copy h1,
@@ -363,6 +477,10 @@ a {
   padding: 18px;
 }
 
+.connect-metric-card {
+  background: rgba(255, 255, 255, 0.52);
+}
+
 .metric-value {
   margin: 10px 0 4px;
   font-size: 1.9rem;
@@ -472,6 +590,27 @@ a {
   padding: 26px;
   display: grid;
   gap: 20px;
+}
+
+.dashboard-hero-card {
+  padding: 22px 24px;
+  background:
+    linear-gradient(135deg, rgba(255, 251, 244, 0.94), rgba(243, 233, 221, 0.94));
+}
+
+.dashboard-hero-meta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dashboard-stat-card {
+  padding: 16px 18px;
+}
+
+.dashboard-action-card {
+  min-height: 132px;
+  background: linear-gradient(180deg, rgba(255, 251, 245, 0.82), rgba(255, 255, 255, 0.56));
 }
 
 .home-summary-card h3 {
@@ -688,6 +827,24 @@ a {
   border: 1px solid var(--line);
 }
 
+.finder-status-strip {
+  gap: 10px;
+}
+
+.finder-alert {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+}
+
+.finder-alert-error {
+  background: rgba(166, 69, 42, 0.08);
+}
+
+.finder-alert-warning {
+  background: rgba(184, 94, 60, 0.08);
+}
+
 .finder-action-bar-wrap {
   align-items: end;
 }
@@ -745,6 +902,18 @@ a {
   border-radius: 18px;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.56);
+}
+
+.finder-empty-state {
+  display: grid;
+  gap: 8px;
+  align-content: center;
+  min-height: 180px;
+  padding: 22px;
+}
+
+.finder-empty-state-inline {
+  margin: 14px;
 }
 
 .finder-tile-icon {
@@ -970,11 +1139,15 @@ a {
 
   .app-header,
   .header-main,
+  .connect-hero-head,
   .brand-inline,
   .header-actions,
   .page-header,
   .finder-toolbar,
-  .finder-action-bar {
+  .finder-action-bar,
+  .dashboard-hero-card,
+  .finder-status-strip,
+  .connect-selected-meta {
     flex-direction: column;
     align-items: stretch;
   }
