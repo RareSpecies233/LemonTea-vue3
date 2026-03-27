@@ -126,10 +126,32 @@ export function readFile(path) {
 }
 
 export function writeFile(path, contentBase64) {
+  return writeFilePart(path, contentBase64, false)
+}
+
+export function writeFilePart(path, contentBase64, append = false) {
   return request(clientApiPath('file/write'), {
     method: 'POST',
-    body: JSON.stringify({ path, content_base64: contentBase64 })
+    body: JSON.stringify({ path, content_base64: contentBase64, append })
   })
+}
+
+export async function writeFileBytesChunked(path, bytes, options = {}) {
+  const chunkSize = options.chunkSize || 8192
+  let offset = 0
+  let append = false
+
+  while (offset < bytes.length) {
+    const nextOffset = Math.min(offset + chunkSize, bytes.length)
+    const chunk = bytes.subarray(offset, nextOffset)
+    await writeFilePart(path, encodeBytesBase64(chunk), append)
+    append = true
+    offset = nextOffset
+  }
+
+  if (!bytes.length) {
+    await writeFilePart(path, '', false)
+  }
 }
 
 export function createDirectory(path) {

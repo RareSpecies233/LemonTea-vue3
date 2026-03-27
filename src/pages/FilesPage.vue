@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { createDirectory, decodeBase64ToBytes, deletePath, encodeBytesBase64, listFiles, readFile, renamePath, writeFile } from '../api.js'
+import { createDirectory, decodeBase64ToBytes, deletePath, listFiles, readFile, renamePath, writeFileBytesChunked } from '../api.js'
 
 const loading = ref(false)
 const actionLoading = ref(false)
@@ -109,6 +109,7 @@ async function activateEntry(entry) {
 
 function openContextMenu(event, entry = null) {
   event.preventDefault()
+  event.stopPropagation()
   closeShortcutMenu()
   if (entry) {
     selectedItem.value = entry
@@ -163,7 +164,7 @@ async function handleUploadSelection(event) {
   try {
     for (const file of files) {
       const bytes = new Uint8Array(await file.arrayBuffer())
-      await writeFile(joinPath(currentPath.value, file.name), encodeBytesBase64(bytes))
+      await writeFileBytesChunked(joinPath(currentPath.value, file.name), bytes)
     }
     await browse(currentPath.value)
   } catch (err) {
@@ -285,6 +286,23 @@ async function submitLocation() {
   await browse(locationInput.value.trim() || '/')
 }
 
+function formatFileSize(value) {
+  if (!Number.isFinite(value) || value < 0) {
+    return '—'
+  }
+  if (value < 1024) {
+    return `${value} B`
+  }
+  const units = ['KB', 'MB', 'GB', 'TB']
+  let size = value
+  let unitIndex = -1
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024
+    unitIndex += 1
+  }
+  return `${size >= 100 ? size.toFixed(0) : size.toFixed(1)} ${units[unitIndex]}`
+}
+
 const favoriteItems = computed(() => {
   const favorites = [
     { label: 'Home', path: '~', description: '用户主目录' },
@@ -309,7 +327,7 @@ const selectedSummary = computed(() => {
   return {
     title: selectedItem.value.name,
     type: selectedItem.value.is_directory ? '目录' : '文件',
-    size: selectedItem.value.is_directory ? '—' : `${selectedItem.value.size} bytes`,
+    size: selectedItem.value.is_directory ? '—' : formatFileSize(selectedItem.value.size),
     path: selectedItem.value.path
   }
 })
@@ -409,7 +427,7 @@ onBeforeUnmount(() => {
             <span>{{ entry.name }}</span>
           </span>
           <span>{{ entry.is_directory ? '目录' : '文件' }}</span>
-          <span>{{ entry.is_directory ? '—' : `${entry.size} bytes` }}</span>
+          <span>{{ entry.is_directory ? '—' : formatFileSize(entry.size) }}</span>
         </button>
 
         <div v-if="!explorerRows.length && !loading" class="finder-empty-state finder-empty-state-inline">

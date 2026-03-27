@@ -9,10 +9,10 @@ const loading = ref(false)
 const error = ref('')
 
 const navItems = [
-  { to: '/shell', label: 'SSH 控制' },
-  { to: '/files', label: '文件管理' },
-  { to: '/lemon-plugins', label: 'LemonTea 子进程管理' },
-  { to: '/honey-plugins', label: 'HoneyTea 子进程管理' }
+  { to: '/shell', label: 'SSH 控制', short: 'SSH' },
+  { to: '/files', label: '文件管理', short: '文件' },
+  { to: '/lemon-plugins', label: 'LemonTea 子进程管理', short: 'Lemon' },
+  { to: '/honey-plugins', label: 'HoneyTea 子进程管理', short: 'Honey' }
 ]
 
 const health = computed(() => appState.lastHealth)
@@ -58,8 +58,8 @@ onMounted(() => {
         <span class="header-chip">{{ appState.baseUrl }}</span>
       </div>
       <nav class="workspace-nav">
-        <RouterLink v-for="item in navItems" :key="item.to" :to="item.to" class="workspace-nav-link workspace-nav-action" :class="{ active: route.path === item.to }">
-          {{ item.label }}
+        <RouterLink v-for="item in navItems" :key="item.to" :to="item.to" :title="item.label" class="workspace-nav-link workspace-nav-action" :class="{ active: route.path === item.to }">
+          {{ item.short }}
         </RouterLink>
         <button class="workspace-nav-action" :disabled="loading" @click="refreshHealth">{{ loading ? '刷新中...' : '刷新' }}</button>
         <button class="workspace-nav-action" @click="leaveSession">断开</button>
