@@ -125,6 +125,49 @@ export function readFile(path) {
   return request(`${clientApiPath('file')}?path=${encodeURIComponent(path)}`)
 }
 
+export function readFileChunk(path, offset = 0, length = 4096) {
+  const query = new URLSearchParams({
+    path,
+    offset: String(offset),
+    length: String(length)
+  })
+  return request(`${clientApiPath('file/chunk')}?${query.toString()}`)
+}
+
+export async function readFileBytesChunked(path, expectedSize, options = {}) {
+  const chunkSize = options.chunkSize || 4096
+  const chunks = []
+  let total = 0
+  let offset = 0
+  const shouldTrackSize = Number.isFinite(expectedSize) && expectedSize >= 0
+
+  while (!shouldTrackSize || offset < expectedSize) {
+    const payload = await readFileChunk(path, offset, chunkSize)
+    const data = payload?.data || {}
+    const bytes = decodeBase64ToBytes(data.content_base64 || '')
+
+    if (!bytes.length) {
+      break
+    }
+
+    chunks.push(bytes)
+    total += bytes.length
+    offset += bytes.length
+
+    if (data.eof) {
+      break
+    }
+  }
+
+  const merged = new Uint8Array(total)
+  let cursor = 0
+  chunks.forEach((chunk) => {
+    merged.set(chunk, cursor)
+    cursor += chunk.length
+  })
+  return merged
+}
+
 export function writeFile(path, contentBase64) {
   return writeFilePart(path, contentBase64, false)
 }
@@ -137,7 +180,7 @@ export function writeFilePart(path, contentBase64, append = false) {
 }
 
 export async function writeFileBytesChunked(path, bytes, options = {}) {
-  const chunkSize = options.chunkSize || 8192
+  const chunkSize = options.chunkSize || 2048
   let offset = 0
   let append = false
 
@@ -207,10 +250,10 @@ export function installHoneyPlugin(manifest, files, replace = false) {
   })
 }
 
-export function updateHoneyFirmware(filename, contentBase64) {
+export function updateHoneyFirmware(filename, contentBase64 = '', stagedPath = '') {
   return request(clientApiPath('firmware'), {
     method: 'POST',
-    body: JSON.stringify({ filename, content_base64: contentBase64 })
+    body: JSON.stringify({ filename, content_base64: contentBase64, staged_path: stagedPath })
   })
 }
 

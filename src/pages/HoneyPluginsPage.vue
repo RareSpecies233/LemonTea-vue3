@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue'
-import { callHoneyPlugin, encodeBytesBase64, installHoneyPlugin, listHoneyPlugins, startHoneyPlugin, stopHoneyPlugin, updateHoneyFirmware } from '../api.js'
+import { callHoneyPlugin, installHoneyPlugin, listHoneyPlugins, startHoneyPlugin, stopHoneyPlugin, updateHoneyFirmware, writeFileBytesChunked } from '../api.js'
 import { buildPluginPackage } from '../plugin-package.js'
 
 const plugins = ref([])
@@ -105,6 +105,29 @@ function handleFirmwareSelection(event) {
   event.target.value = ''
 }
 
+function sanitizeFilename(name) {
+  return String(name || 'honeytea')
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .slice(0, 120)
+}
+
+function formatBytes(value) {
+  if (!Number.isFinite(value) || value < 0) {
+    return '—'
+  }
+  if (value < 1024) {
+    return `${value} B`
+  }
+  const units = ['KB', 'MB', 'GB', 'TB']
+  let size = value
+  let unitIndex = -1
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024
+    unitIndex += 1
+  }
+  return `${size >= 100 ? size.toFixed(0) : size.toFixed(1)} ${units[unitIndex]}`
+}
+
 async function installFirmware() {
   if (!firmwareFile.value) {
     error.value = '请先选择 HoneyTea 可执行程序'
@@ -115,7 +138,9 @@ async function installFirmware() {
   firmwareUpdating.value = true
   try {
     const bytes = new Uint8Array(await firmwareFile.value.arrayBuffer())
-    const payload = await updateHoneyFirmware(firmwareFile.value.name, encodeBytesBase64(bytes))
+    const stagedPath = `~/.honeytea-fw/${Date.now()}-${sanitizeFilename(firmwareFile.value.name)}`
+    await writeFileBytesChunked(stagedPath, bytes)
+    const payload = await updateHoneyFirmware(firmwareFile.value.name, '', stagedPath)
     result.value = JSON.stringify(payload, null, 2)
     firmwareFile.value = null
   } catch (err) {
@@ -191,7 +216,7 @@ refresh()
       </div>
       <div v-if="firmwareFile" class="plugin-install-summary">
         <strong>{{ firmwareFile.name }}</strong>
-        <small>大小 {{ firmwareFile.size }} bytes</small>
+        <small>大小 {{ formatBytes(firmwareFile.size) }}</small>
       </div>
       <div class="stack-actions">
         <button class="danger-button" :disabled="firmwareUpdating || !firmwareFile" @click="installFirmware">

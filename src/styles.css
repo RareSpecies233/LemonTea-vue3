@@ -1183,7 +1183,7 @@ a {
 }
 
 .connect-minimal-shell {
-  min-height: 100vh;
+  min-height: calc(100vh - 132px);
   display: grid;
   place-items: center;
   padding: 24px;
@@ -1207,6 +1207,7 @@ a {
   min-height: 100vh;
   padding: 18px;
   display: grid;
+  grid-template-rows: auto 1fr;
   gap: 14px;
 }
 
@@ -1214,8 +1215,15 @@ a {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
   align-items: center;
+  min-height: 78px;
+  height: 78px;
   gap: 14px;
   padding: 14px 16px;
+  position: sticky;
+  top: 0;
+  z-index: 24;
+  background: linear-gradient(135deg, rgba(255, 250, 244, 0.9), rgba(246, 236, 222, 0.9));
+  backdrop-filter: blur(8px);
 }
 
 .workspace-status,
@@ -1233,6 +1241,18 @@ a {
   flex: 0 0 320px;
   flex-wrap: nowrap;
   gap: 4px;
+}
+
+.workspace-status {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.workspace-status .header-chip {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .workspace-nav-link {
@@ -1273,6 +1293,12 @@ a {
   white-space: nowrap;
 }
 
+.workspace-nav-link.disabled,
+.workspace-nav-action:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 .workspace-nav-link.active {
   background: rgba(244, 217, 199, 0.55);
   border-color: rgba(184, 94, 60, 0.28);
@@ -1282,6 +1308,11 @@ a {
   min-width: 0;
 }
 
+.workspace-main-connect {
+  display: grid;
+  align-content: center;
+}
+
 .workspace-error {
   margin: 0;
   padding: 12px 14px;
@@ -1289,6 +1320,27 @@ a {
   color: var(--danger);
   background: rgba(166, 69, 42, 0.08);
   border: 1px solid rgba(166, 69, 42, 0.14);
+}
+
+.connection-dialog-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: rgba(28, 22, 18, 0.3);
+  backdrop-filter: blur(4px);
+}
+
+.connection-dialog-card {
+  width: min(420px, calc(100vw - 32px));
+  padding: 24px;
+  display: grid;
+  gap: 10px;
+}
+
+.connection-dialog-card h3 {
+  margin: 0;
 }
 
 .dashboard-empty {
@@ -1446,6 +1498,10 @@ a {
 
   .workspace-header {
     display: flex;
+    height: auto;
+    min-height: 0;
+    position: static;
+    backdrop-filter: none;
   }
 
   .workspace-nav {

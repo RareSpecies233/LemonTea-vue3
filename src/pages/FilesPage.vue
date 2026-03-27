@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { createDirectory, decodeBase64ToBytes, deletePath, listFiles, readFile, renamePath, writeFileBytesChunked } from '../api.js'
+import { createDirectory, deletePath, listFiles, readFileBytesChunked, renamePath, writeFileBytesChunked } from '../api.js'
 
 const loading = ref(false)
 const actionLoading = ref(false)
@@ -181,8 +181,7 @@ async function downloadEntry(entry = selectedItem.value) {
   actionLoading.value = true
   error.value = ''
   try {
-    const payload = await readFile(entry.path)
-    const bytes = decodeBase64ToBytes(payload?.data?.content_base64 || '')
+    const bytes = await readFileBytesChunked(entry.path, entry.size)
     const blob = new Blob([bytes])
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
