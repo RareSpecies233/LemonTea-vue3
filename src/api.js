@@ -181,6 +181,7 @@ export function writeFilePart(path, contentBase64, append = false) {
 
 export async function writeFileBytesChunked(path, bytes, options = {}) {
   const chunkSize = options.chunkSize || 2048
+  const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null
   let offset = 0
   let append = false
 
@@ -190,10 +191,16 @@ export async function writeFileBytesChunked(path, bytes, options = {}) {
     await writeFilePart(path, encodeBytesBase64(chunk), append)
     append = true
     offset = nextOffset
+    if (onProgress) {
+      onProgress(offset, bytes.length)
+    }
   }
 
   if (!bytes.length) {
     await writeFilePart(path, '', false)
+    if (onProgress) {
+      onProgress(0, 0)
+    }
   }
 }
 

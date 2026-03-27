@@ -19,6 +19,7 @@ const fileInput = ref(null)
 const shortcutDialog = ref({ visible: false, index: -1, label: '', path: '' })
 const customShortcuts = ref([])
 const shortcutMenu = ref({ visible: false, x: 0, y: 0, index: -1 })
+const uploadState = ref({ visible: false, fileName: '', fileIndex: 0, fileCount: 0, uploadedBytes: 0, totalBytes: 0 })
 
 const CUSTOM_SHORTCUTS_KEY = 'lemontea.files.shortcuts'
 
@@ -161,16 +162,36 @@ async function handleUploadSelection(event) {
   }
   actionLoading.value = true
   error.value = ''
+  const totalBytes = files.reduce((sum, file) => sum + file.size, 0)
+  uploadState.value = {
+    visible: true,
+    fileName: files[0].name,
+    fileIndex: 1,
+    fileCount: files.length,
+    uploadedBytes: 0,
+    totalBytes
+  }
   try {
-    for (const file of files) {
+    let uploadedBefore = 0
+    for (let index = 0; index < files.length; index += 1) {
+      const file = files[index]
       const bytes = new Uint8Array(await file.arrayBuffer())
-      await writeFileBytesChunked(joinPath(currentPath.value, file.name), bytes)
+      uploadState.value.fileName = file.name
+      uploadState.value.fileIndex = index + 1
+      await writeFileBytesChunked(joinPath(currentPath.value, file.name), bytes, {
+        onProgress(written) {
+          uploadState.value.uploadedBytes = uploadedBefore + written
+        }
+      })
+      uploadedBefore += bytes.length
+      uploadState.value.uploadedBytes = uploadedBefore
     }
     await browse(currentPath.value)
   } catch (err) {
     error.value = err.message
   } finally {
     actionLoading.value = false
+    uploadState.value.visible = false
   }
 }
 
@@ -319,16 +340,18 @@ const canRename = computed(() => Boolean(selectedItem.value))
 const canDelete = computed(() => Boolean(selectedItem.value))
 const itemCountLabel = computed(() => `${items.value.length} 个项目`)
 const explorerRows = computed(() => items.value)
-const selectedSummary = computed(() => {
-  if (!selectedItem.value) {
-    return null
+const selectedPath = computed(() => selectedItem.value?.path || '未选择')
+const uploadPercent = computed(() => {
+  const total = uploadState.value.totalBytes
+  if (!total) {
+    return 0
   }
-  return {
-    title: selectedItem.value.name,
-    type: selectedItem.value.is_directory ? '目录' : '文件',
-    size: selectedItem.value.is_directory ? '—' : formatFileSize(selectedItem.value.size),
-    path: selectedItem.value.path
-  }
+  return Math.max(0, Math.min(100, Math.round((uploadState.value.uploadedBytes / total) * 100)))
+})
+const uploadProgressLabel = computed(() => {
+  const uploaded = formatFileSize(uploadState.value.uploadedBytes)
+  const total = formatFileSize(uploadState.value.totalBytes)
+  return `${uploaded} / ${total}`
 })
 
 onMounted(async () => {
@@ -364,16 +387,6 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="file-sidebar-footer">
-        <p class="eyebrow">当前选择</p>
-        <div v-if="selectedSummary" class="file-selection-card">
-          <strong>{{ selectedSummary.title }}</strong>
-          <small>{{ selectedSummary.type }}</small>
-          <small>{{ selectedSummary.size }}</small>
-          <small>{{ selectedSummary.path }}</small>
-        </div>
-        <div v-else class="file-selection-empty">选择文件或目录后，这里会显示当前项目信息。</div>
-      </div>
     </aside>
 
     <div class="file-main panel-card" @contextmenu="openContextMenu($event, null)">
@@ -434,6 +447,11 @@ onBeforeUnmount(() => {
           <p class="muted">你可以切换到其他目录继续浏览。</p>
         </div>
       </div>
+
+      <footer class="file-path-footer">
+        <span>当前目录：{{ currentPath || '/' }}</span>
+        <span>选中路径：{{ selectedPath }}</span>
+      </footer>
 
       <div
         v-if="contextMenu.visible"
@@ -499,6 +517,18 @@ onBeforeUnmount(() => {
             <button class="primary-button" @click="saveShortcut">保存</button>
             <button class="ghost-button" @click="closeShortcutDialog">取消</button>
           </div>
+        </div>
+      </div>
+
+      <div v-if="uploadState.visible" class="finder-dialog-mask upload-progress-mask">
+        <div class="finder-dialog-card upload-progress-card">
+          <p class="eyebrow">上传中</p>
+          <h3>正在上传文件，请勿关闭页面</h3>
+          <p class="muted">当前文件 {{ uploadState.fileIndex }}/{{ uploadState.fileCount }}：{{ uploadState.fileName }}</p>
+          <div class="upload-progress-bar">
+            <div class="upload-progress-bar-inner" :style="{ width: `${uploadPercent}%` }"></div>
+          </div>
+          <p class="muted">{{ uploadPercent }}% · {{ uploadProgressLabel }}</p>
         </div>
       </div>
     </div>

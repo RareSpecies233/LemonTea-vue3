@@ -233,6 +233,11 @@ a {
   gap: 18px;
 }
 
+.page-stack {
+  min-height: 0;
+  height: 100%;
+}
+
 .connect-metrics,
 .metrics-grid,
 .home-grid,
@@ -690,14 +695,19 @@ a {
 .terminal-shell {
   padding: 0;
   overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  height: 100%;
 }
 
 .terminal-shell.compact .terminal-host {
-  min-height: 320px;
+  min-height: 280px;
+  height: auto;
 }
 
 .terminal-toolbar {
-  padding: 16px 18px;
+  padding: 10px 14px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -706,8 +716,9 @@ a {
 }
 
 .terminal-host {
-  min-height: 520px;
-  padding: 14px;
+  min-height: 0;
+  height: 100%;
+  padding: 12px;
   background: linear-gradient(180deg, #111, #171310);
 }
 
@@ -1178,15 +1189,15 @@ a {
   }
 
   .terminal-host {
-    min-height: 400px;
+    min-height: 0;
   }
 }
 
 .connect-minimal-shell {
-  min-height: calc(100vh - 132px);
+  min-height: 100%;
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: 12px 24px;
 }
 
 .connect-minimal-card {
@@ -1204,21 +1215,22 @@ a {
 }
 
 .workspace-shell {
-  min-height: 100vh;
+  height: 100vh;
   padding: 18px;
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 14px;
+  overflow: hidden;
 }
 
 .workspace-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
   align-items: center;
-  min-height: 78px;
-  height: 78px;
+  min-height: 31px;
+  height: 31px;
   gap: 14px;
-  padding: 14px 16px;
+  padding: 0 12px;
   position: sticky;
   top: 0;
   z-index: 24;
@@ -1255,9 +1267,16 @@ a {
   white-space: nowrap;
 }
 
+.workspace-header .status-pill,
+.workspace-header .header-chip {
+  height: 22px;
+  padding: 0 8px;
+  font-size: 0.72rem;
+}
+
 .workspace-nav-link {
   text-decoration: none;
-  padding: 8px 8px;
+  padding: 0 8px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.56);
   border: 1px solid transparent;
@@ -1270,7 +1289,7 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 8px 8px;
+  padding: 0 8px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.56);
   border: 1px solid transparent;
@@ -1287,6 +1306,7 @@ a {
 
 .workspace-nav-link,
 .workspace-nav-action {
+  height: 28px;
   flex: 1 1 0;
   font-size: 0.74rem;
   line-height: 1;
@@ -1306,6 +1326,8 @@ a {
 
 .workspace-main {
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .workspace-main-connect {
@@ -1352,6 +1374,8 @@ a {
   grid-template-columns: 280px minmax(0, 1fr);
   gap: 16px;
   align-items: start;
+  height: 100%;
+  min-height: 0;
 }
 
 .file-sidebar,
@@ -1364,10 +1388,9 @@ a {
   flex-direction: column;
   justify-content: space-between;
   gap: 16px;
-  max-height: calc(100vh - 132px);
+  max-height: 100%;
   overflow: auto;
-  position: sticky;
-  top: 18px;
+  position: static;
 }
 
 .file-shortcut-list {
@@ -1399,28 +1422,13 @@ a {
   word-break: break-all;
 }
 
-.file-sidebar-footer {
-  display: grid;
-  gap: 10px;
-}
-
-.file-selection-card,
-.file-selection-empty {
-  display: grid;
-  gap: 8px;
-  padding: 16px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.58);
-  border: 1px solid var(--line);
-}
-
-.file-selection-empty {
-  color: var(--muted);
-}
-
 .file-main {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 14px;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 .file-main-header {
@@ -1445,12 +1453,13 @@ a {
 }
 
 .file-explorer {
-  display: grid;
-  align-content: start;
+  display: block;
   border: 1px solid var(--line);
   border-radius: 20px;
-  overflow: hidden;
+  overflow: auto;
   background: rgba(255, 255, 255, 0.52);
+  flex: 1;
+  min-height: 0;
 }
 
 .file-explorer-head,
@@ -1464,6 +1473,9 @@ a {
   padding: 12px 14px;
   color: var(--muted);
   background: rgba(240, 228, 214, 0.72);
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 .file-row {
@@ -1486,6 +1498,39 @@ a {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.file-path-footer {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.54);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.82rem;
+}
+
+.upload-progress-mask {
+  z-index: 32;
+}
+
+.upload-progress-card {
+  width: min(460px, calc(100% - 32px));
+}
+
+.upload-progress-bar {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(184, 94, 60, 0.12);
+  overflow: hidden;
+}
+
+.upload-progress-bar-inner {
+  height: 100%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+  transition: width 120ms linear;
 }
 
 @media (max-width: 1100px) {

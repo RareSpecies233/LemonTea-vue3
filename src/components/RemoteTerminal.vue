@@ -29,6 +29,7 @@ let term
 let fitAddon
 let socket
 let resizeListener
+let hostResizeObserver
 let ptySessionId = ''
 const decoder = new TextDecoder()
 
@@ -184,6 +185,10 @@ function mountTerminal() {
 
   resizeListener = () => fitTerminal()
   window.addEventListener('resize', resizeListener)
+  if (typeof ResizeObserver !== 'undefined' && terminalHost.value) {
+    hostResizeObserver = new ResizeObserver(() => fitTerminal())
+    hostResizeObserver.observe(terminalHost.value)
+  }
   attachSocket()
 }
 
@@ -196,6 +201,10 @@ onMounted(mountTerminal)
 onBeforeUnmount(() => {
   if (resizeListener) {
     window.removeEventListener('resize', resizeListener)
+  }
+  if (hostResizeObserver) {
+    hostResizeObserver.disconnect()
+    hostResizeObserver = null
   }
   closeTerminal()
   term?.dispose()
