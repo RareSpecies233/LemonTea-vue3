@@ -1234,6 +1234,7 @@ a {
   position: sticky;
   top: 0;
   z-index: 24;
+  overflow: hidden;
   background: linear-gradient(135deg, rgba(255, 250, 244, 0.9), rgba(246, 236, 222, 0.9));
   backdrop-filter: blur(8px);
 }
@@ -1244,7 +1245,7 @@ a {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .workspace-nav {
@@ -1253,6 +1254,13 @@ a {
   flex: 0 0 320px;
   flex-wrap: nowrap;
   gap: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.workspace-nav::-webkit-scrollbar {
+  display: none;
 }
 
 .workspace-status {
@@ -1316,7 +1324,8 @@ a {
 .workspace-nav-link,
 .workspace-nav-action {
   height: 22px;
-  flex: 1 1 0;
+  flex: 0 0 auto;
+  min-width: 52px;
   font-size: 0.72rem;
   line-height: 1;
   white-space: nowrap;
@@ -1564,30 +1573,10 @@ a {
 }
 
 @media (max-width: 1100px) {
-  .workspace-header,
   .file-main-header,
   .file-location-bar {
     flex-direction: column;
     align-items: stretch;
-  }
-
-  .workspace-header {
-    display: flex;
-    height: auto;
-    min-height: 0;
-    position: static;
-    backdrop-filter: none;
-  }
-
-  .workspace-nav {
-    width: auto;
-    flex: 1 1 auto;
-    justify-content: stretch;
-  }
-
-  .workspace-nav-link {
-    min-width: 0;
-    flex: 1 1 180px;
   }
 
   .file-workspace {

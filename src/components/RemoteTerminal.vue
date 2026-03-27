@@ -126,11 +126,16 @@ function attachSocket() {
         }
         break
       case 'pty_exit':
+        ptySessionId = ''
         terminalStatus.value = `已退出(${payload.exit_code ?? 0})`
         isConnected.value = false
         term.write(`\r\n[session exited: ${payload.exit_code ?? 0}]\r\n`)
         break
       case 'error':
+        if (String(payload.message || '').includes('PTY session not found')) {
+          ptySessionId = ''
+          isConnected.value = false
+        }
         terminalStatus.value = '错误'
         term.write(`\r\n[error] ${payload.message}\r\n`)
         break
@@ -155,12 +160,13 @@ function attachSocket() {
 }
 
 function closeTerminal() {
-  if (socket && socket.readyState === WebSocket.OPEN && ptySessionId) {
+  if (socket && socket.readyState === WebSocket.OPEN && ptySessionId && isConnected.value) {
     sendMessage({ action: 'close' })
   }
   socket?.close()
   socket = null
   isConnected.value = false
+  ptySessionId = ''
 }
 
 function clearTerminal() {

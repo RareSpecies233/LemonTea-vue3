@@ -104,6 +104,11 @@ function serverApiPath(suffix) {
   return `/api/server/${suffix}`
 }
 
+function isTransientTimeoutError(error) {
+  const message = String(error?.message || '')
+  return /request timeout for client|timeout/i.test(message)
+}
+
 export function listClients() {
   return request('/api/clients')
 }
@@ -140,6 +145,7 @@ export function readFileChunk(path, offset = 0, length = 4096) {
 
 export async function readFileBytesChunked(path, expectedSize, options = {}) {
   const chunkSize = options.chunkSize || 32768
+  const maxRetries = Number.isFinite(options.maxRetries) ? options.maxRetries : 2
   const chunks = []
   let total = 0
   let offset = 0
@@ -147,7 +153,19 @@ export async function readFileBytesChunked(path, expectedSize, options = {}) {
   const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null
 
   while (!shouldTrackSize || offset < expectedSize) {
-    const payload = await readFileChunk(path, offset, chunkSize)
+    let payload
+    let retryCount = 0
+    while (true) {
+      try {
+        payload = await readFileChunk(path, offset, chunkSize)
+        break
+      } catch (error) {
+        if (!isTransientTimeoutError(error) || retryCount >= maxRetries) {
+          throw error
+        }
+        retryCount += 1
+      }
+    }
     const data = payload?.data || {}
     const bytes = decodeBase64ToBytes(data.content_base64 || '')
 
@@ -191,6 +209,7 @@ export function writeFilePart(path, contentBase64, append = false) {
 export async function writeFileBytesChunked(path, bytes, options = {}) {
   let chunkSize = options.chunkSize || 16384
   const minimumChunkSize = 1024
+  const maxRetries = Number.isFinite(options.maxRetries) ? options.maxRetries : 2
   const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null
   let offset = 0
   let append = false
@@ -199,24 +218,32 @@ export async function writeFileBytesChunked(path, bytes, options = {}) {
   while (offset < bytes.length) {
     const nextOffset = Math.min(offset + chunkSize, bytes.length)
     const chunk = bytes.subarray(offset, nextOffset)
-    try {
-      const payload = await writeFilePart(path, encodeBytesBase64(chunk), append)
-      append = true
-      offset = nextOffset
-      const remoteSize = Number(payload?.data?.size)
-      if (Number.isFinite(remoteSize) && remoteSize >= 0) {
-        finalSize = remoteSize
+    let retryCount = 0
+    while (true) {
+      try {
+        const payload = await writeFilePart(path, encodeBytesBase64(chunk), append)
+        append = true
+        offset = nextOffset
+        const remoteSize = Number(payload?.data?.size)
+        if (Number.isFinite(remoteSize) && remoteSize >= 0) {
+          finalSize = remoteSize
+        }
+        if (onProgress) {
+          onProgress(offset, bytes.length)
+        }
+        break
+      } catch (error) {
+        const message = String(error?.message || '')
+        if (/message size exceeds limit|payload too large|too large/i.test(message) && chunkSize > minimumChunkSize) {
+          chunkSize = Math.max(minimumChunkSize, Math.floor(chunkSize / 2))
+          break
+        }
+        if (isTransientTimeoutError(error) && retryCount < maxRetries) {
+          retryCount += 1
+          continue
+        }
+        throw error
       }
-      if (onProgress) {
-        onProgress(offset, bytes.length)
-      }
-    } catch (error) {
-      const message = String(error?.message || '')
-      if (/message size exceeds limit|payload too large|too large/i.test(message) && chunkSize > minimumChunkSize) {
-        chunkSize = Math.max(minimumChunkSize, Math.floor(chunkSize / 2))
-        continue
-      }
-      throw error
     }
   }
 
@@ -338,6 +365,7 @@ export function writeServerRuntimePart(path, contentBase64, append = false) {
 export async function writeServerRuntimeBytesChunked(path, bytes, options = {}) {
   let chunkSize = options.chunkSize || 16384
   const minimumChunkSize = 1024
+  const maxRetries = Number.isFinite(options.maxRetries) ? options.maxRetries : 2
   const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null
   let offset = 0
   let append = false
@@ -347,25 +375,33 @@ export async function writeServerRuntimeBytesChunked(path, bytes, options = {}) 
   while (offset < bytes.length) {
     const nextOffset = Math.min(offset + chunkSize, bytes.length)
     const chunk = bytes.subarray(offset, nextOffset)
-    try {
-      const payload = await writeServerRuntimePart(path, encodeBytesBase64(chunk), append)
-      append = true
-      offset = nextOffset
-      stagedPath = payload?.staged_path || payload?.data?.staged_path || stagedPath
-      const remoteSize = Number(payload?.size ?? payload?.data?.size)
-      if (Number.isFinite(remoteSize) && remoteSize >= 0) {
-        finalSize = remoteSize
+    let retryCount = 0
+    while (true) {
+      try {
+        const payload = await writeServerRuntimePart(path, encodeBytesBase64(chunk), append)
+        append = true
+        offset = nextOffset
+        stagedPath = payload?.staged_path || payload?.data?.staged_path || stagedPath
+        const remoteSize = Number(payload?.size ?? payload?.data?.size)
+        if (Number.isFinite(remoteSize) && remoteSize >= 0) {
+          finalSize = remoteSize
+        }
+        if (onProgress) {
+          onProgress(offset, bytes.length)
+        }
+        break
+      } catch (error) {
+        const message = String(error?.message || '')
+        if (/message size exceeds limit|payload too large|too large/i.test(message) && chunkSize > minimumChunkSize) {
+          chunkSize = Math.max(minimumChunkSize, Math.floor(chunkSize / 2))
+          break
+        }
+        if (isTransientTimeoutError(error) && retryCount < maxRetries) {
+          retryCount += 1
+          continue
+        }
+        throw error
       }
-      if (onProgress) {
-        onProgress(offset, bytes.length)
-      }
-    } catch (error) {
-      const message = String(error?.message || '')
-      if (/message size exceeds limit|payload too large|too large/i.test(message) && chunkSize > minimumChunkSize) {
-        chunkSize = Math.max(minimumChunkSize, Math.floor(chunkSize / 2))
-        continue
-      }
-      throw error
     }
   }
 
